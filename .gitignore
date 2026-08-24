@@ -12,6 +12,15 @@ dist
 dist-ssr
 *.local
 
+# Testing
+test-results
+playwright-report
+blob-report
+playwright/.cache
+
+# Deploy tooling
+.gh-pages-worktree
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

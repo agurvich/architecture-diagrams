@@ -1,4 +1,12 @@
-import { BaseEdge, EdgeLabelRenderer, getStraightPath, useInternalNode, type EdgeProps, type Edge } from '@xyflow/react';
+import {
+  BaseEdge,
+  EdgeLabelRenderer,
+  getStraightPath,
+  useConnection,
+  useInternalNode,
+  type EdgeProps,
+  type Edge,
+} from '@xyflow/react';
 import type { EffectiveEdge } from '../../types/effectiveGraph';
 import { useDiagramStore } from '../../store/diagramStore';
 import { getFloatingEdgeParams } from './floatingEdgeUtils';
@@ -11,6 +19,10 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
   const edgeSets = useDiagramStore((s) => s.diagram.edgeSets);
   const setHover = useDiagramStore((s) => s.setHover);
   const select = useDiagramStore((s) => s.select);
+  // See GraphNode.tsx: hover-driven recomputation of the effective graph
+  // must not happen mid-drag, or it corrupts React Flow's hit-testing for
+  // the handle under the cursor.
+  const connectionInProgress = useConnection((c) => c.inProgress);
 
   if (!sourceNode || !targetNode || !data) return null;
 
@@ -43,8 +55,8 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
         <div
           className={`graph-edge__label ${data.dimmed ? 'graph-edge__label--dimmed' : ''}`}
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-          onMouseEnter={() => setHover({ kind: 'edge', id })}
-          onMouseLeave={() => setHover(null)}
+          onMouseEnter={() => !connectionInProgress && setHover({ kind: 'edge', id })}
+          onMouseLeave={() => !connectionInProgress && setHover(null)}
           onClick={(e) => {
             e.stopPropagation();
             select({ kind: 'edge', id });
