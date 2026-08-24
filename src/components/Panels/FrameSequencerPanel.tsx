@@ -1,4 +1,8 @@
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { useDiagramStore } from '../../store/diagramStore';
 
 export function FrameSequencerPanel() {
@@ -18,54 +22,73 @@ export function FrameSequencerPanel() {
   };
 
   return (
-    <div className="panel">
-      <h3 className="panel__title">Frame sequencer</h3>
-      <div className="panel__add-row">
-        <input
-          type="text"
-          placeholder="New frame name"
-          value={newFrameName}
-          onChange={(e) => setNewFrameName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleCapture()}
-        />
-        <button onClick={handleCapture}>Capture current state</button>
-      </div>
-      <ul className="frame-list">
-        {frames.map((f, idx) => (
-          <li key={f.id} className={`frame-list__item ${f.id === currentFrameId ? 'frame-list__item--active' : ''}`}>
-            <div className="frame-list__row">
-              <button className="frame-list__reorder" disabled={idx === 0} onClick={() => reorderFrames(idx, idx - 1)}>
-                ▲
-              </button>
-              <button
-                className="frame-list__reorder"
-                disabled={idx === frames.length - 1}
-                onClick={() => reorderFrames(idx, idx + 1)}
-              >
-                ▼
-              </button>
-              <input
-                type="text"
-                className="frame-list__name"
-                value={f.name}
-                onChange={(e) => updateFrame(f.id, { name: e.target.value })}
+    <Card className="gap-2 py-2.5">
+      <CardHeader className="px-2.5">
+        <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Frame sequencer
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2.5 px-2.5">
+        <div className="flex gap-1.5">
+          <Input
+            className="min-w-0 flex-1"
+            placeholder="New frame name"
+            value={newFrameName}
+            onChange={(e) => setNewFrameName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCapture()}
+          />
+          <Button size="sm" variant="outline" onClick={handleCapture}>
+            Capture current state
+          </Button>
+        </div>
+        <ul className="flex flex-col gap-2">
+          {frames.map((f, idx) => (
+            <li
+              key={f.id}
+              className={`rounded-md border p-1.5 ${f.id === currentFrameId ? 'border-primary bg-accent/50' : ''}`}
+            >
+              <div className="flex items-center gap-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 text-[10px]"
+                  disabled={idx === 0}
+                  onClick={() => reorderFrames(idx, idx - 1)}
+                >
+                  ▲
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 text-[10px]"
+                  disabled={idx === frames.length - 1}
+                  onClick={() => reorderFrames(idx, idx + 1)}
+                >
+                  ▼
+                </Button>
+                <Input
+                  className="min-w-0 flex-1"
+                  type="text"
+                  value={f.name}
+                  onChange={(e) => updateFrame(f.id, { name: e.target.value })}
+                />
+                <Button size="icon" variant="ghost" onClick={() => gotoFrame(f.id)} title="Go to this frame">
+                  ▶
+                </Button>
+                <Button size="icon" variant="ghost" onClick={() => deleteFrame(f.id)} title="Delete frame">
+                  ✕
+                </Button>
+              </div>
+              <Textarea
+                className="mt-1.5 min-h-10"
+                placeholder="Narration notes…"
+                value={f.notes}
+                onChange={(e) => updateFrame(f.id, { notes: e.target.value })}
               />
-              <button className="frame-list__goto" onClick={() => gotoFrame(f.id)} title="Go to this frame">
-                ▶
-              </button>
-              <button className="frame-list__delete" onClick={() => deleteFrame(f.id)} title="Delete frame">
-                ✕
-              </button>
-            </div>
-            <textarea
-              className="frame-list__notes"
-              placeholder="Narration notes…"
-              value={f.notes}
-              onChange={(e) => updateFrame(f.id, { notes: e.target.value })}
-            />
-          </li>
-        ))}
-      </ul>
-    </div>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
