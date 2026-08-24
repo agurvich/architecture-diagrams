@@ -1,3 +1,4 @@
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDiagramStore } from '../../store/diagramStore';
 import type { DiagramNode, NodeId } from '../../types/diagram';
 
@@ -24,16 +25,19 @@ export function HierarchyPanel() {
     const children = tree.get(node.id) ?? [];
     const hasChildren = children.length > 0;
     return (
-      <div key={node.id} className="hierarchy-panel__node" style={{ paddingLeft: depth * 14 }}>
-        <div className="hierarchy-panel__row">
+      <div key={node.id} style={{ paddingLeft: depth * 14 }}>
+        <div className="flex items-center gap-1 py-0.5">
           {hasChildren ? (
-            <button className="hierarchy-panel__chevron" onClick={() => toggleExpand(node.id)}>
+            <button
+              className="w-[18px] border-none bg-transparent p-0 text-center"
+              onClick={() => toggleExpand(node.id)}
+            >
               {expandedNodes.has(node.id) ? '▾' : '▸'}
             </button>
           ) : (
-            <span className="hierarchy-panel__chevron-spacer" />
+            <span className="inline-block w-[18px]" />
           )}
-          <span className="hierarchy-panel__label" onClick={() => select({ kind: 'node', id: node.id })}>
+          <span className="cursor-pointer hover:underline" onClick={() => select({ kind: 'node', id: node.id })}>
             {node.label}
           </span>
         </div>
@@ -43,9 +47,13 @@ export function HierarchyPanel() {
   };
 
   return (
-    <div className="panel">
-      <h3 className="panel__title">Hierarchy</h3>
-      <div className="hierarchy-panel__tree">{roots.map((n) => renderNode(n, 0))}</div>
-    </div>
+    <Card className="gap-2 py-2.5">
+      <CardHeader className="px-2.5">
+        <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Hierarchy
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col px-2.5 text-sm">{roots.map((n) => renderNode(n, 0))}</CardContent>
+    </Card>
   );
 }
