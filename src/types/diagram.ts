@@ -44,4 +44,12 @@ export interface Diagram {
   edges: DiagramEdge[];
   edgeSets: EdgeSet[];
   frames: Frame[];
+  /**
+   * Accumulating library of custom node colors: every color ever chosen
+   * via the full color picker gets appended here (deduped), independent
+   * of which nodes currently use it, so authors build up a reusable
+   * palette instead of re-picking the same shade repeatedly. Optional so
+   * diagrams saved before this field existed still parse.
+   */
+  colorPalette?: string[];
 }

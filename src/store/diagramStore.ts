@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Diagram, DiagramEdge, DiagramNode, EdgeId, EdgeSet, EdgeSetId, Frame, FrameId, NodeId } from '../types/diagram';
 import type { HoverTarget, SelectedElement } from '../types/viewState';
 import { seedDiagram } from '../data/seedDiagram';
+import { DEFAULT_COLOR_PALETTE } from '../lib/colorPalette';
 import { makeId } from '../utils/id';
 import {
   InvalidDiagramError,
@@ -13,6 +14,12 @@ import {
 
 function cloneSeed(): Diagram {
   return JSON.parse(JSON.stringify(seedDiagram));
+}
+
+/** Fills in colorPalette for diagrams saved/imported before that field existed. */
+function normalizeDiagram(diagram: Diagram): Diagram {
+  if (diagram.colorPalette && diagram.colorPalette.length > 0) return diagram;
+  return { ...diagram, colorPalette: [...DEFAULT_COLOR_PALETTE] };
 }
 
 function defaultActiveSets(diagram: Diagram): Set<EdgeSetId> {
@@ -51,6 +58,8 @@ interface DiagramStore {
   updateNode: (id: NodeId, patch: Partial<DiagramNode>) => void;
   deleteNode: (id: NodeId) => void;
   setNodeParent: (nodeId: NodeId, parentId: NodeId | undefined) => void;
+  /** Appends a color to the accumulating palette (deduped, no-op if already present). */
+  addPaletteColor: (color: string) => void;
 
   addEdge: (sourceId: NodeId, targetId: NodeId, sets: EdgeSetId[], level: 'node' | 'group') => EdgeId;
   updateEdge: (id: EdgeId, patch: Partial<DiagramEdge>) => void;
@@ -80,7 +89,7 @@ function persistAndSet(
 }
 
 export const useDiagramStore = create<DiagramStore>((set, get) => {
-  const initialDiagram = loadFromLocalStorage() ?? cloneSeed();
+  const initialDiagram = normalizeDiagram(loadFromLocalStorage() ?? cloneSeed());
 
   return {
     diagram: initialDiagram,
@@ -110,7 +119,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
 
     importJSON: (json) => {
       try {
-        const diagram = parseImportedDiagramJSON(json);
+        const diagram = normalizeDiagram(parseImportedDiagramJSON(json));
         saveToLocalStorageDebounced(diagram);
         set({
           diagram,
@@ -172,6 +181,13 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         ...diagram,
         nodes: diagram.nodes.map((n) => (n.id === nodeId ? { ...n, parentId } : n)),
       })),
+
+    addPaletteColor: (color) =>
+      persistAndSet(set, (diagram) => {
+        const palette = diagram.colorPalette ?? [];
+        if (palette.includes(color)) return diagram;
+        return { ...diagram, colorPalette: [...palette, color] };
+      }),
 
     addEdge: (sourceId, targetId, sets, level) => {
       const id = makeId('edge');

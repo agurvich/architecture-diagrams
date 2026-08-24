@@ -1,4 +1,5 @@
 import type { Diagram } from '../types/diagram';
+import { DEFAULT_COLOR_PALETTE } from '../lib/colorPalette';
 
 // A small "web app" system demoed through three lenses:
 // - Infrastructure: physical/network connectivity
@@ -11,6 +12,7 @@ import type { Diagram } from '../types/diagram';
 // group-level "Data" edge to the cache, representing a subsystem-level
 // relationship that isn't owned by either child specifically.
 export const seedDiagram: Diagram = {
+  colorPalette: DEFAULT_COLOR_PALETTE,
   edgeSets: [
     { id: 'infra', name: 'Infrastructure', color: '#4f8ff7' },
     { id: 'process', name: 'Process', color: '#f7924f' },
