@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { useReactFlow } from '@xyflow/react';
+import { Button } from '@/components/ui/button';
 import { useDiagramStore } from '../../store/diagramStore';
 
 export function Toolbar() {
@@ -50,22 +51,31 @@ export function Toolbar() {
   };
 
   return (
-    <div className="toolbar">
-      <span className="toolbar__title">Multi-Lens Diagram</span>
-      <span className="toolbar__stats">
+    <div className="relative flex items-center gap-4 border-b bg-card px-3.5 py-2">
+      <span className="font-semibold">Multi-Lens Diagram</span>
+      <span className="toolbar__stats text-xs text-muted-foreground">
         {diagram.nodes.length} nodes · {diagram.edges.length} edges · {diagram.edgeSets.length} lenses
       </span>
-      <div className="toolbar__actions">
-        <button className="primary" onClick={handleAddNode}>
+      <div className="ml-auto flex gap-2">
+        <Button size="sm" onClick={handleAddNode}>
           + Add node
-        </button>
-        <button onClick={handleExport}>Export JSON</button>
-        <button onClick={handleImportClick}>Import JSON</button>
+        </Button>
+        <Button size="sm" variant="outline" onClick={handleExport}>
+          Export JSON
+        </Button>
+        <Button size="sm" variant="outline" onClick={handleImportClick}>
+          Import JSON
+        </Button>
         <input ref={fileInputRef} type="file" accept="application/json" hidden onChange={handleFileChange} />
-        <button onClick={loadSeed}>Reset to demo</button>
+        <Button size="sm" variant="outline" onClick={loadSeed}>
+          Reset to demo
+        </Button>
       </div>
       {importError && (
-        <div className="toolbar__error" onClick={clearImportError}>
+        <div
+          className="absolute right-3.5 top-full z-20 cursor-pointer rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive"
+          onClick={clearImportError}
+        >
           {importError} (click to dismiss)
         </div>
       )}
