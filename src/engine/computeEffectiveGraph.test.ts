@@ -98,6 +98,21 @@ describe('computeEffectiveGraph', () => {
     expect(visibleEdges.some((e) => e.originalEdgeIds.includes('e-a-b-internal'))).toBe(false);
   });
 
+  it('drops an edge whose target has been reparented inside the source (or vice versa)', () => {
+    const diagram = makeFixture();
+    // Reparent "cache" under "cluster" — the existing cluster->cache
+    // group-level edge now points from a container to something rendered
+    // inside it. Floating-edge geometry has no sensible anchor for that,
+    // so it should be dropped once the container is expanded (while
+    // collapsed, it is already covered by the plain vs===vt check).
+    diagram.nodes.find((n) => n.id === 'cache')!.parentId = 'cluster';
+
+    const expanded = computeEffectiveGraph(diagram, { activeSets: allSets, expandedNodes: new Set(['cluster']) });
+    expect(expanded.visibleEdges.some((e) => e.originalEdgeIds.includes('e-cluster-cache'))).toBe(false);
+    // cache itself should still render, just with no edge to its own parent
+    expect(expanded.visibleNodes.some((n) => n.id === 'cache')).toBe(true);
+  });
+
   it('resolves a group-level edge to the parent regardless of expand state', () => {
     const diagram = makeFixture();
 

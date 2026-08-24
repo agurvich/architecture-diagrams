@@ -52,6 +52,7 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
         className={classNames}
         style={{ stroke: strokeColor, strokeWidth: data.highlighted ? 3 : 2, strokeDasharray: isMultiSet ? '6 3' : undefined }}
         interactionWidth={16}
+        markerEnd="url(#graph-edge-arrow)"
       />
       <EdgeLabelRenderer>
         <div

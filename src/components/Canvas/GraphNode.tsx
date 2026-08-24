@@ -1,6 +1,7 @@
 import { Handle, Position, useConnection, type NodeProps, type Node } from '@xyflow/react';
 import type { EffectiveNode } from '../../types/effectiveGraph';
 import { useDiagramStore } from '../../store/diagramStore';
+import { getIconComponent } from '../../icons/registry';
 
 export type GraphNodeType = Node<EffectiveNode, 'graphNode'>;
 
@@ -41,9 +42,13 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
     <Handle key={pos} id={pos} type="source" position={pos} className="graph-node__handle" />
   ));
 
+  const accentStyle = data.color ? ({ '--node-accent': data.color } as React.CSSProperties) : undefined;
+  const NodeIcon = getIconComponent(data.icon);
+  const icon = NodeIcon && <NodeIcon className="graph-node__icon" style={data.color ? { color: data.color } : undefined} />;
+
   if (data.renderMode === 'expanded-container') {
     return (
-      <div className={classNames} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
+      <div className={classNames} style={accentStyle} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
         <div
           className="graph-node__header"
           onClick={(e) => {
@@ -61,6 +66,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
           >
             ▾
           </button>
+          {icon}
           <span className="graph-node__label">{data.label}</span>
         </div>
         {handles}
@@ -71,6 +77,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   return (
     <div
       className={classNames}
+      style={accentStyle}
       onMouseEnter={onHoverEnter}
       onMouseLeave={onHoverLeave}
       onClick={(e) => {
@@ -90,6 +97,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
           ▸
         </button>
       )}
+      {icon}
       <span className="graph-node__label">{data.label}</span>
       {data.renderMode === 'collapsed-group' && data.collapsedChildIds && (
         <span className="graph-node__badge">{data.collapsedChildIds.length} nodes</span>

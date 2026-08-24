@@ -12,6 +12,26 @@ test('loads the seeded demo diagram', async ({ page }) => {
   await expect(page.locator('.graph-node', { hasText: 'API Cluster' })).toContainText('2 nodes');
 });
 
+test('adding a node creates it, selects it, and supports color/icon/rename', async ({ page }) => {
+  await page.getByRole('button', { name: '+ Add node' }).click();
+
+  await expect(page.locator('.toolbar__stats')).toHaveText('8 nodes · 12 edges · 3 lenses');
+  const newNode = page.locator('.graph-node', { hasText: 'New node' });
+  await expect(newNode).toBeVisible();
+
+  const panel = page.locator('.properties-panel');
+  await expect(panel.getByLabel('Label')).toHaveValue('New node');
+
+  await panel.getByLabel('Label').fill('Redis Cache');
+  await expect(page.locator('.graph-node', { hasText: 'Redis Cache' })).toBeVisible();
+
+  await panel.getByTitle('Cache').click();
+  await expect(page.locator('.graph-node', { hasText: 'Redis Cache' }).locator('.graph-node__icon')).toBeVisible();
+
+  await panel.locator('input[type="color"]').fill('#e0475a');
+  await expect(page.locator('.graph-node', { hasText: 'Redis Cache' })).toHaveCSS('border-left-color', 'rgb(224, 71, 90)');
+});
+
 async function totalMergedEdgeCount(page: import('@playwright/test').Page) {
   const texts = await page.locator('.graph-edge__count-badge').allTextContents();
   return texts.reduce((sum, t) => sum + Number(t), 0);

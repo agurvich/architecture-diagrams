@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useDiagramStore } from '../../../store/diagramStore';
 import type { NodeId } from '../../../types/diagram';
+import { ICON_OPTIONS } from '../../../icons/registry';
+
+const DEFAULT_COLOR = '#98a2b3';
 
 function wouldCreateCycle(nodes: { id: NodeId; parentId?: NodeId }[], nodeId: NodeId, candidateParentId: NodeId): boolean {
   let current: NodeId | undefined = candidateParentId;
@@ -55,6 +58,41 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
           ))}
         </select>
       </label>
+
+      <label className="properties-panel__field">
+        Color
+        <div className="properties-panel__color-row">
+          <input
+            type="color"
+            value={node.color ?? DEFAULT_COLOR}
+            onChange={(e) => updateNode(node.id, { color: e.target.value })}
+          />
+          {node.color && <button onClick={() => updateNode(node.id, { color: undefined })}>Clear</button>}
+        </div>
+      </label>
+
+      <div className="properties-panel__field">
+        Icon
+        <div className="properties-panel__icon-grid">
+          <button
+            className={`properties-panel__icon-option ${!node.icon ? 'properties-panel__icon-option--selected' : ''}`}
+            title="No icon"
+            onClick={() => updateNode(node.id, { icon: undefined })}
+          >
+            —
+          </button>
+          {ICON_OPTIONS.map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              className={`properties-panel__icon-option ${node.icon === key ? 'properties-panel__icon-option--selected' : ''}`}
+              title={label}
+              onClick={() => updateNode(node.id, { icon: key })}
+            >
+              <Icon />
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="properties-panel__metadata">
         <span className="properties-panel__label">Metadata</span>

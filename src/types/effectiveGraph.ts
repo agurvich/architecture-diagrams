@@ -12,6 +12,8 @@ export interface EffectiveNode {
   /** Set only when nested inside an expanded-container in the render tree. */
   parentId?: NodeId;
   metadata: Record<string, string>;
+  color?: string;
+  icon?: string;
   dimmed: boolean;
   highlighted: boolean;
 }

@@ -9,6 +9,10 @@ export interface DiagramNode {
   parentId?: NodeId;
   position: { x: number; y: number };
   metadata: Record<string, string>;
+  /** Accent color for the node (CSS color string), author-chosen. */
+  color?: string;
+  /** Key into the icon registry (src/icons/registry.ts), e.g. "server". */
+  icon?: string;
 }
 
 export interface DiagramEdge {

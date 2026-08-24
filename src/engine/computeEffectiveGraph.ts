@@ -1,7 +1,7 @@
 import type { Diagram, EdgeId, EdgeSetId, NodeId } from '../types/diagram';
 import type { EffectiveEdge, EffectiveGraph, EffectiveNode } from '../types/effectiveGraph';
 import type { HoverTarget } from '../types/viewState';
-import { buildAncestryIndex, getDescendants, hasChildren, resolveVisibleAncestor } from './ancestry';
+import { buildAncestryIndex, getDescendants, hasChildren, isAncestor, resolveVisibleAncestor } from './ancestry';
 
 export interface ComputeEffectiveGraphOptions {
   activeSets: Set<EdgeSetId>;
@@ -48,6 +48,8 @@ export function computeEffectiveGraph(
       // is always safe to use directly here.
       parentId: node.parentId,
       metadata: node.metadata,
+      color: node.color,
+      icon: node.icon,
       dimmed: false,
       highlighted: false,
     });
@@ -70,6 +72,12 @@ export function computeEffectiveGraph(
     const vs = resolve(edge.sourceId);
     const vt = resolve(edge.targetId);
     if (vs === vt) continue; // fully internal to a collapsed group
+    // One endpoint renders as a container that visually contains the
+    // other (e.g. a node was reparented under a node it already has an
+    // edge to, or vice versa). Floating-edge geometry has no sensible
+    // anchor for "target sits inside source's own rectangle", so skip it
+    // rather than draw a line that appears to come from nowhere.
+    if (isAncestor(index, vs, vt) || isAncestor(index, vt, vs)) continue;
 
     const key = `${vs}=>${vt}`;
     let acc = accByKey.get(key);

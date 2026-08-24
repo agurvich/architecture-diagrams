@@ -65,6 +65,24 @@ export function resolveVisibleAncestor(
   return nodeId;
 }
 
+/**
+ * True if ancestorId is a strict ancestor of nodeId in the raw hierarchy
+ * (regardless of collapse state). Used to catch edges that would otherwise
+ * render between a container and something already nested inside it — the
+ * floating-edge geometry has no sensible answer for that case, since the
+ * "target" point lies inside the "source" rectangle rather than outside it.
+ */
+export function isAncestor(index: AncestryIndex, ancestorId: NodeId, nodeId: NodeId): boolean {
+  let current = index.parentOf.get(nodeId);
+  const seen = new Set<NodeId>();
+  while (current && !seen.has(current)) {
+    if (current === ancestorId) return true;
+    seen.add(current);
+    current = index.parentOf.get(current);
+  }
+  return false;
+}
+
 /** All descendant node ids of nodeId (not including nodeId itself). */
 export function getDescendants(index: AncestryIndex, nodeId: NodeId): NodeId[] {
   const result: NodeId[] = [];

@@ -3,7 +3,6 @@ import {
   Background,
   ConnectionMode,
   Controls,
-  MiniMap,
   ReactFlow,
   type Node,
   type Edge,
@@ -205,6 +204,24 @@ export function DiagramCanvas() {
 
   return (
     <div className="diagram-canvas">
+      {/* Shared arrowhead marker for every edge. `context-stroke` makes it
+          inherit each edge's own stroke color, so one definition covers
+          every lens color without generating a marker per color. */}
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden>
+        <defs>
+          <marker
+            id="graph-edge-arrow"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: 'context-stroke' }} />
+          </marker>
+        </defs>
+      </svg>
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -223,7 +240,6 @@ export function DiagramCanvas() {
       >
         <Background />
         <Controls />
-        <MiniMap pannable zoomable />
       </ReactFlow>
       {pending && <ConnectionPopover pending={pending} onDone={() => setPending(null)} />}
     </div>
