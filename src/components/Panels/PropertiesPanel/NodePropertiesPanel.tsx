@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useDiagramStore } from '../../../store/diagramStore';
 import type { NodeId } from '../../../types/diagram';
 import { ICON_OPTIONS } from '../../../icons/registry';
@@ -24,6 +27,7 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
   const node = nodes.find((n) => n.id === nodeId);
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
+  const idPrefix = useId();
 
   if (!node) return null;
 
@@ -31,22 +35,29 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
   const eligibleParents = nodes.filter((n) => n.id !== node.id && !wouldCreateCycle(nodes, node.id, n.id));
 
   return (
-    <div className="panel properties-panel">
-      <div className="panel__header-row">
-        <h3 className="panel__title">Node</h3>
-        <button className="panel__close" onClick={() => select(null)}>
+    <div className="properties-panel flex flex-col gap-2.5 rounded-lg border bg-card p-2.5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Node</h3>
+        <button className="border-none bg-transparent px-1.5 py-0.5" onClick={() => select(null)}>
           ✕
         </button>
       </div>
 
-      <label className="properties-panel__field">
-        Label
-        <input type="text" value={node.label} onChange={(e) => updateNode(node.id, { label: e.target.value })} />
-      </label>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={`${idPrefix}-label`}>Label</Label>
+        <Input
+          id={`${idPrefix}-label`}
+          type="text"
+          value={node.label}
+          onChange={(e) => updateNode(node.id, { label: e.target.value })}
+        />
+      </div>
 
-      <label className="properties-panel__field">
-        Parent (hierarchy)
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={`${idPrefix}-parent`}>Parent (hierarchy)</Label>
         <select
+          id={`${idPrefix}-parent`}
+          className="h-9 rounded-md border bg-transparent px-2 text-sm shadow-xs"
           value={node.parentId ?? ''}
           onChange={(e) => setNodeParent(node.id, e.target.value || undefined)}
         >
@@ -57,25 +68,31 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
             </option>
           ))}
         </select>
-      </label>
+      </div>
 
-      <label className="properties-panel__field">
-        Color
-        <div className="properties-panel__color-row">
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={`${idPrefix}-color`}>Color</Label>
+        <div className="flex items-center gap-2">
           <input
+            id={`${idPrefix}-color`}
             type="color"
+            className="h-6 w-9 cursor-pointer rounded border p-0.5"
             value={node.color ?? DEFAULT_COLOR}
             onChange={(e) => updateNode(node.id, { color: e.target.value })}
           />
-          {node.color && <button onClick={() => updateNode(node.id, { color: undefined })}>Clear</button>}
+          {node.color && (
+            <Button size="sm" variant="outline" onClick={() => updateNode(node.id, { color: undefined })}>
+              Clear
+            </Button>
+          )}
         </div>
-      </label>
+      </div>
 
-      <div className="properties-panel__field">
-        Icon
-        <div className="properties-panel__icon-grid">
+      <div className="flex flex-col gap-1">
+        <Label>Icon</Label>
+        <div className="grid max-h-40 grid-cols-6 gap-1 overflow-y-auto p-0.5">
           <button
-            className={`properties-panel__icon-option ${!node.icon ? 'properties-panel__icon-option--selected' : ''}`}
+            className={`flex items-center justify-center rounded-md border py-1.5 text-sm ${!node.icon ? 'border-primary bg-accent text-accent-foreground' : ''}`}
             title="No icon"
             onClick={() => updateNode(node.id, { icon: undefined })}
           >
@@ -84,7 +101,7 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
           {ICON_OPTIONS.map(({ key, label, Icon }) => (
             <button
               key={key}
-              className={`properties-panel__icon-option ${node.icon === key ? 'properties-panel__icon-option--selected' : ''}`}
+              className={`flex items-center justify-center rounded-md border py-1.5 text-sm ${node.icon === key ? 'border-primary bg-accent text-accent-foreground' : ''}`}
               title={label}
               onClick={() => updateNode(node.id, { icon: key })}
             >
@@ -94,17 +111,20 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
         </div>
       </div>
 
-      <div className="properties-panel__metadata">
-        <span className="properties-panel__label">Metadata</span>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs text-muted-foreground">Metadata</span>
         {metadataEntries.map(([key, value]) => (
-          <div key={key} className="properties-panel__metadata-row">
-            <input type="text" value={key} readOnly />
-            <input
+          <div key={key} className="flex gap-1">
+            <Input className="min-w-0 flex-1" type="text" value={key} readOnly />
+            <Input
+              className="min-w-0 flex-1"
               type="text"
               value={value}
               onChange={(e) => updateNode(node.id, { metadata: { ...node.metadata, [key]: e.target.value } })}
             />
-            <button
+            <Button
+              size="icon"
+              variant="outline"
               onClick={() => {
                 const next = { ...node.metadata };
                 delete next[key];
@@ -112,13 +132,27 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
               }}
             >
               ✕
-            </button>
+            </Button>
           </div>
         ))}
-        <div className="properties-panel__metadata-row">
-          <input type="text" placeholder="key" value={newKey} onChange={(e) => setNewKey(e.target.value)} />
-          <input type="text" placeholder="value" value={newValue} onChange={(e) => setNewValue(e.target.value)} />
-          <button
+        <div className="flex gap-1">
+          <Input
+            className="min-w-0 flex-1"
+            type="text"
+            placeholder="key"
+            value={newKey}
+            onChange={(e) => setNewKey(e.target.value)}
+          />
+          <Input
+            className="min-w-0 flex-1"
+            type="text"
+            placeholder="value"
+            value={newValue}
+            onChange={(e) => setNewValue(e.target.value)}
+          />
+          <Button
+            size="icon"
+            variant="outline"
             onClick={() => {
               if (!newKey.trim()) return;
               updateNode(node.id, { metadata: { ...node.metadata, [newKey.trim()]: newValue } });
@@ -127,19 +161,19 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
             }}
           >
             +
-          </button>
+          </Button>
         </div>
       </div>
 
-      <button
-        className="properties-panel__delete"
+      <Button
+        variant="destructive"
         onClick={() => {
           deleteNode(node.id);
           select(null);
         }}
       >
         Delete node
-      </button>
+      </Button>
     </div>
   );
 }
