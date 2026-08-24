@@ -1,4 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import type { EdgeSetId } from '../../types/diagram';
 import { useDiagramStore } from '../../store/diagramStore';
 
@@ -24,6 +27,7 @@ export function ConnectionPopover({ pending, onDone }: Props) {
   const addEdge = useDiagramStore((s) => s.addEdge);
   const [selectedSets, setSelectedSets] = useState<Set<EdgeSetId>>(new Set());
   const [level, setLevel] = useState<'node' | 'group'>(pending.defaultLevel);
+  const idPrefix = useId();
 
   const clampedPosition = useMemo(() => {
     const maxLeft = window.innerWidth - POPOVER_WIDTH - VIEWPORT_MARGIN;
@@ -51,35 +55,42 @@ export function ConnectionPopover({ pending, onDone }: Props) {
 
   return (
     <div
-      className="connection-popover"
+      className="connection-popover fixed z-30 flex w-[220px] flex-col gap-2 rounded-lg border bg-popover p-2.5 text-popover-foreground shadow-lg"
       style={{ left: clampedPosition.left, top: clampedPosition.top }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="connection-popover__title">New edge — tag sets</div>
-      <div className="connection-popover__sets">
-        {edgeSets.map((s) => (
-          <label key={s.id} className="connection-popover__set">
-            <input type="checkbox" checked={selectedSets.has(s.id)} onChange={() => toggleSet(s.id)} />
-            <span className="connection-popover__swatch" style={{ background: s.color }} />
-            {s.name}
-          </label>
-        ))}
+      <div className="text-xs font-semibold">New edge — tag sets</div>
+      <div className="flex flex-col gap-1">
+        {edgeSets.map((s) => {
+          const inputId = `${idPrefix}-${s.id}`;
+          return (
+            <div key={s.id} className="flex items-center gap-1.5 text-xs">
+              <Checkbox id={inputId} checked={selectedSets.has(s.id)} onCheckedChange={() => toggleSet(s.id)} />
+              <span className="inline-block h-[9px] w-[9px] rounded-sm" style={{ background: s.color }} />
+              <Label htmlFor={inputId} className="cursor-pointer font-normal">
+                {s.name}
+              </Label>
+            </div>
+          );
+        })}
       </div>
-      <div className="connection-popover__level">
-        <label>
+      <div className="flex flex-col gap-1 text-xs">
+        <label className="flex items-center gap-1.5">
           <input type="radio" name="level" checked={level === 'node'} onChange={() => setLevel('node')} />
           Node-level
         </label>
-        <label>
+        <label className="flex items-center gap-1.5">
           <input type="radio" name="level" checked={level === 'group'} onChange={() => setLevel('group')} />
           Group-level
         </label>
       </div>
-      <div className="connection-popover__actions">
-        <button onClick={onDone}>Cancel</button>
-        <button className="primary" disabled={selectedSets.size === 0} onClick={confirm}>
+      <div className="flex justify-end gap-1.5">
+        <Button size="sm" variant="outline" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button size="sm" disabled={selectedSets.size === 0} onClick={confirm}>
           Add edge
-        </button>
+        </Button>
       </div>
     </div>
   );
