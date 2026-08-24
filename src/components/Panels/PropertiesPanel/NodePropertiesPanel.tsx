@@ -38,7 +38,7 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
     <div className="properties-panel flex flex-col gap-2.5 rounded-lg border bg-card p-2.5">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Node</h3>
-        <button className="border-none bg-transparent px-1.5 py-0.5" onClick={() => select(null)}>
+        <button className="cursor-pointer rounded border-none bg-transparent px-1.5 py-0.5 hover:bg-accent" onClick={() => select(null)}>
           ✕
         </button>
       </div>
@@ -92,7 +92,7 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
         <Label>Icon</Label>
         <div className="grid max-h-40 grid-cols-6 gap-1 overflow-y-auto p-0.5">
           <button
-            className={`flex items-center justify-center rounded-md border py-1.5 text-sm ${!node.icon ? 'border-primary bg-accent text-accent-foreground' : ''}`}
+            className={`flex cursor-pointer items-center justify-center rounded-md border py-1.5 text-sm hover:bg-accent ${!node.icon ? 'border-primary bg-accent text-accent-foreground' : ''}`}
             title="No icon"
             onClick={() => updateNode(node.id, { icon: undefined })}
           >
@@ -101,7 +101,7 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
           {ICON_OPTIONS.map(({ key, label, Icon }) => (
             <button
               key={key}
-              className={`flex items-center justify-center rounded-md border py-1.5 text-sm ${node.icon === key ? 'border-primary bg-accent text-accent-foreground' : ''}`}
+              className={`flex cursor-pointer items-center justify-center rounded-md border py-1.5 text-sm hover:bg-accent ${node.icon === key ? 'border-primary bg-accent text-accent-foreground' : ''}`}
               title={label}
               onClick={() => updateNode(node.id, { icon: key })}
             >

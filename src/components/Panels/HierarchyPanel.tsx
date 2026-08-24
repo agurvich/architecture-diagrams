@@ -29,7 +29,7 @@ export function HierarchyPanel() {
         <div className="flex items-center gap-1 py-0.5">
           {hasChildren ? (
             <button
-              className="w-[18px] border-none bg-transparent p-0 text-center"
+              className="w-[18px] cursor-pointer border-none bg-transparent p-0 text-center"
               onClick={() => toggleExpand(node.id)}
             >
               {expandedNodes.has(node.id) ? '▾' : '▸'}

@@ -34,7 +34,7 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Merged edge ({effEdge.count})
           </h3>
-          <button className="border-none bg-transparent px-1.5 py-0.5" onClick={() => select(null)}>
+          <button className="cursor-pointer rounded border-none bg-transparent px-1.5 py-0.5 hover:bg-accent" onClick={() => select(null)}>
             ✕
           </button>
         </div>
@@ -73,7 +73,7 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
     <div className="properties-panel flex flex-col gap-2.5 rounded-lg border bg-card p-2.5">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Edge</h3>
-        <button className="border-none bg-transparent px-1.5 py-0.5" onClick={() => select(null)}>
+        <button className="cursor-pointer rounded border-none bg-transparent px-1.5 py-0.5 hover:bg-accent" onClick={() => select(null)}>
           ✕
         </button>
       </div>
