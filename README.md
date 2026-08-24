@@ -21,6 +21,24 @@ Opens with a small seeded demo diagram (a load-balanced API cluster with Infrast
 npm run build   # type-check + production build
 ```
 
+## Testing
+
+```bash
+npm run test       # Vitest + React Testing Library (engine + component tests)
+npm run test:watch # same, in watch mode
+npm run test:e2e   # Playwright, driving a real browser against the dev server
+```
+
+Unit/component tests live next to the code they cover (`*.test.ts(x)`); end-to-end tests live in `e2e/`. The Playwright suite exercises the full interaction model against a real browser — lens toggling, collapse/expand with edge merging, hover highlighting, frame playback, and drag-to-connect edge creation — and is what actually caught a real bug: hovering a node mid-drag was corrupting React Flow's hit-testing for the handle under the cursor (fixed in `GraphNode.tsx`/`GraphEdge.tsx` by freezing hover while a connection is in progress).
+
+## Deploying to GitHub Pages
+
+```bash
+npm run deploy:pages
+```
+
+Builds the app and pushes `dist/` to the `gh-pages` branch (via a throwaway git worktree, so it never touches your working tree on `main`). One-time setup in the repo: **Settings → Pages → Source: Deploy from a branch → `gh-pages` / `(root)`**. Vite's `base` is set to `./` (relative) so the build works from any subpath without hardcoding the repo name.
+
 ## How it works
 
 - **`src/types/diagram.ts`** — the persisted schema: `Node`, `Edge`, `EdgeSet`, `Frame`, `Diagram`. A diagram is a single JSON-serializable document.
