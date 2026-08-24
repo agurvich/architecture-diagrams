@@ -1,10 +1,11 @@
-import { useId, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useDiagramStore } from '../../../store/diagramStore';
 import type { NodeId } from '../../../types/diagram';
-import { ICON_OPTIONS } from '../../../icons/registry';
+import { ICON_OPTIONS, getIconComponent } from '../../../icons/registry';
+import { guessIconKey } from '../../../icons/iconMatcher';
 
 const DEFAULT_COLOR = '#98a2b3';
 
@@ -19,15 +20,27 @@ function wouldCreateCycle(nodes: { id: NodeId; parentId?: NodeId }[], nodeId: No
 
 export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
   const nodes = useDiagramStore((s) => s.diagram.nodes);
+  const colorPalette = useDiagramStore((s) => s.diagram.colorPalette ?? []);
   const updateNode = useDiagramStore((s) => s.updateNode);
   const deleteNode = useDiagramStore((s) => s.deleteNode);
   const setNodeParent = useDiagramStore((s) => s.setNodeParent);
+  const addPaletteColor = useDiagramStore((s) => s.addPaletteColor);
   const select = useDiagramStore((s) => s.select);
 
   const node = nodes.find((n) => n.id === nodeId);
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
+  const [iconSearch, setIconSearch] = useState('');
   const idPrefix = useId();
+
+  const autoIconKey = node ? guessIconKey(node.label, Object.values(node.metadata)) : undefined;
+  const AutoIcon = getIconComponent(autoIconKey);
+
+  const filteredIcons = useMemo(() => {
+    const q = iconSearch.trim().toLowerCase();
+    if (!q) return ICON_OPTIONS;
+    return ICON_OPTIONS.filter((opt) => opt.key.includes(q) || opt.label.toLowerCase().includes(q));
+  }, [iconSearch]);
 
   if (!node) return null;
 
@@ -72,13 +85,26 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
 
       <div className="flex flex-col gap-1">
         <Label htmlFor={`${idPrefix}-color`}>Color</Label>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {colorPalette.map((c) => (
+            <button
+              key={c}
+              className={`h-6 w-6 cursor-pointer rounded-full border-2 ${node.color === c ? 'border-primary' : 'border-transparent'}`}
+              style={{ background: c }}
+              title={c}
+              onClick={() => updateNode(node.id, { color: c })}
+            />
+          ))}
           <input
             id={`${idPrefix}-color`}
             type="color"
             className="h-6 w-9 cursor-pointer rounded border p-0.5"
             value={node.color ?? DEFAULT_COLOR}
-            onChange={(e) => updateNode(node.id, { color: e.target.value })}
+            title="Custom color — adds to the palette above"
+            onChange={(e) => {
+              updateNode(node.id, { color: e.target.value });
+              addPaletteColor(e.target.value);
+            }}
           />
           {node.color && (
             <Button size="sm" variant="outline" onClick={() => updateNode(node.id, { color: undefined })}>
@@ -89,16 +115,24 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label>Icon</Label>
+        <Label htmlFor={`${idPrefix}-icon-search`}>Icon</Label>
+        <Input
+          id={`${idPrefix}-icon-search`}
+          type="text"
+          placeholder={`Search ${ICON_OPTIONS.length} icons…`}
+          value={iconSearch}
+          onChange={(e) => setIconSearch(e.target.value)}
+        />
         <div className="grid max-h-40 grid-cols-6 gap-1 overflow-y-auto p-0.5">
           <button
-            className={`flex cursor-pointer items-center justify-center rounded-md border py-1.5 text-sm hover:bg-accent ${!node.icon ? 'border-primary bg-accent text-accent-foreground' : ''}`}
-            title="No icon"
+            className={`col-span-2 flex cursor-pointer items-center justify-center gap-1 rounded-md border py-1.5 text-[11px] hover:bg-accent ${!node.icon ? 'border-primary bg-accent text-accent-foreground' : ''}`}
+            title={`Auto — currently guessing "${autoIconKey}" from the label/metadata`}
             onClick={() => updateNode(node.id, { icon: undefined })}
           >
-            —
+            {AutoIcon && <AutoIcon />}
+            Auto
           </button>
-          {ICON_OPTIONS.map(({ key, label, Icon }) => (
+          {filteredIcons.map(({ key, label, Icon }) => (
             <button
               key={key}
               className={`flex cursor-pointer items-center justify-center rounded-md border py-1.5 text-sm hover:bg-accent ${node.icon === key ? 'border-primary bg-accent text-accent-foreground' : ''}`}
@@ -108,6 +142,9 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
               <Icon />
             </button>
           ))}
+          {filteredIcons.length === 0 && (
+            <span className="col-span-6 py-2 text-center text-xs text-muted-foreground">No icons match “{iconSearch}”</span>
+          )}
         </div>
       </div>
 
