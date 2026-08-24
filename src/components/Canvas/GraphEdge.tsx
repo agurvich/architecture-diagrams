@@ -7,6 +7,7 @@ import {
   type EdgeProps,
   type Edge,
 } from '@xyflow/react';
+import { cn } from '@/lib/utils';
 import type { EffectiveEdge } from '../../types/effectiveGraph';
 import { useDiagramStore } from '../../store/diagramStore';
 import { getFloatingEdgeParams } from './floatingEdgeUtils';
@@ -35,28 +36,29 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
   const strokeColor = setColors.length === 1 ? setColors[0] : '#9098a8';
   const isMultiSet = setColors.length > 1;
 
-  const classNames = [
-    'graph-edge',
-    data.dimmed ? 'graph-edge--dimmed' : '',
-    data.highlighted ? 'graph-edge--highlighted' : '',
-    selected ? 'graph-edge--selected' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const className = cn(
+    'graph-edge transition-opacity duration-150',
+    data.dimmed && 'graph-edge--dimmed opacity-15',
+    data.highlighted && 'graph-edge--highlighted',
+    selected && 'graph-edge--selected',
+  );
 
   return (
     <>
       <BaseEdge
         id={id}
         path={edgePath}
-        className={classNames}
+        className={className}
         style={{ stroke: strokeColor, strokeWidth: data.highlighted ? 3 : 2, strokeDasharray: isMultiSet ? '6 3' : undefined }}
         interactionWidth={16}
         markerEnd="url(#graph-edge-arrow)"
       />
       <EdgeLabelRenderer>
         <div
-          className={`graph-edge__label ${data.dimmed ? 'graph-edge__label--dimmed' : ''}`}
+          className={cn(
+            'graph-edge__label pointer-events-auto absolute flex gap-0.5 transition-opacity duration-150',
+            data.dimmed && 'graph-edge__label--dimmed opacity-15',
+          )}
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           onMouseEnter={() => !hoverFrozen && setHover({ kind: 'edge', id })}
           onMouseLeave={() => !hoverFrozen && setHover(null)}
@@ -65,8 +67,19 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
             select({ kind: 'edge', id });
           }}
         >
-          {data.level === 'group' && <span className="graph-edge__level-badge" title="Group-level edge">G</span>}
-          {data.count > 1 && <span className="graph-edge__count-badge">{data.count}</span>}
+          {data.level === 'group' && (
+            <span
+              className="graph-edge__level-badge cursor-pointer rounded-full border border-primary bg-accent px-1.5 text-[10px] text-primary"
+              title="Group-level edge"
+            >
+              G
+            </span>
+          )}
+          {data.count > 1 && (
+            <span className="graph-edge__count-badge cursor-pointer rounded-full border bg-background px-1.5 text-[10px] text-foreground">
+              {data.count}
+            </span>
+          )}
         </div>
       </EdgeLabelRenderer>
     </>

@@ -203,7 +203,7 @@ export function DiagramCanvas() {
   }, [select, setHover]);
 
   return (
-    <div className="diagram-canvas">
+    <div className="diagram-canvas h-full w-full">
       {/* Shared arrowhead marker for every edge. `context-stroke` makes it
           inherit each edge's own stroke color, so one definition covers
           every lens color without generating a marker per color. */}
