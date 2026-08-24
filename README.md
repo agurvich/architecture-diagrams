@@ -1,32 +1,35 @@
-# React + TypeScript + Vite
+# Architecture Diagrams
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+An interactive multi-lens diagram tool: one graph, viewed through several togglable perspectives instead of several separate static diagrams.
 
-Currently, two official plugins are available:
+- **Nodes are stable** — the same components exist across every lens, preserving spatial memory.
+- **Edges are lens-scoped** — each edge belongs to one or more named "edge sets" (e.g. Infrastructure / Process / Data) that can be toggled on or off independently, alone or combined.
+- **Hierarchy is orthogonal to lens** — nodes can be grouped into collapsible subsystems. Collapsing a group merges its children's edges into the external world into single deduplicated lines (no redundant parallel edges), and supports group-level edges that belong to the subsystem as a whole rather than any one child.
+- **Frames capture narrated walkthroughs** — a frame is a saved snapshot of which lenses are active, which nodes are expanded, and what's highlighted, so an author can build a guided sequence a viewer can step through.
+- **Hovering** a node or edge highlights everything connected to it and dims the rest.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Running it
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Opens with a small seeded demo diagram (a load-balanced API cluster with Infrastructure/Process/Data lenses) that exercises collapse-merge, group-level edges, and a 4-frame walkthrough.
+
+```bash
+npm run build   # type-check + production build
+```
+
+## How it works
+
+- **`src/types/diagram.ts`** — the persisted schema: `Node`, `Edge`, `EdgeSet`, `Frame`, `Diagram`. A diagram is a single JSON-serializable document.
+- **`src/engine/`** — the core derivation logic. `computeEffectiveGraph` takes the raw `Diagram` plus the current view state (active edge sets, expanded nodes, hover/frame highlights) and produces the graph that actually gets rendered: it resolves each node/edge endpoint to its nearest visible (collapsed) ancestor, then dedupes and merges edges that resolve to the same pair, unioning their sets and combined metadata. `ancestry.ts` holds the ancestor-resolution walk that both ordinary collapse and group-level edges share with no special-casing.
+- **`src/store/diagramStore.ts`** — a Zustand store holding the diagram document plus the three view axes (active edge sets, expanded nodes, current frame) and all CRUD/authoring actions. The diagram auto-saves to `localStorage` (debounced); view state resets on reload.
+- **`src/components/Canvas/`** — the React Flow canvas: custom node rendering for leaf/collapsed-group/expanded-container states, custom floating edges (so edges reattach correctly as nodes toggle collapse state), and the inline popover for tagging a newly-dragged edge's sets.
+- **`src/components/Panels/`** — lens toggles, hierarchy tree, node/edge property editors, and the frame sequencer (author + playback).
+- **`src/data/seedDiagram.ts`** — the demo diagram shipped with the app.
+
+## Non-goals (for now)
+
+No backend, no auto-layout (node position is a deliberate authoring choice, preserved across lenses), no natural-language authoring assist, no schema-level validation rules. Diagrams are shared as JSON files via the Export/Import buttons in the toolbar.
