@@ -27,11 +27,20 @@ interface DiagramStore {
   selected: SelectedElement | null;
   currentFrameId: FrameId | null;
   importError: string | null;
+  /**
+   * True while a node is actively being dragged. Hover updates must be
+   * suppressed during this window: hovering another node mid-drag would
+   * otherwise force a full effective-graph recompute, replacing every
+   * rendered node/edge object and snapping the dragged node back to its
+   * pre-drag position on every intermediate re-render.
+   */
+  isNodeDragging: boolean;
 
   loadSeed: () => void;
   importJSON: (json: string) => void;
   exportJSON: () => string;
   clearImportError: () => void;
+  setNodeDragging: (dragging: boolean) => void;
 
   toggleEdgeSet: (id: EdgeSetId) => void;
   toggleExpand: (nodeId: NodeId) => void;
@@ -81,6 +90,9 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     selected: null,
     currentFrameId: null,
     importError: null,
+    isNodeDragging: false,
+
+    setNodeDragging: (dragging) => set({ isNodeDragging: dragging }),
 
     loadSeed: () => {
       const diagram = cloneSeed();

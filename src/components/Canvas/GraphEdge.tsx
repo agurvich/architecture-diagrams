@@ -21,8 +21,10 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
   const select = useDiagramStore((s) => s.select);
   // See GraphNode.tsx: hover-driven recomputation of the effective graph
   // must not happen mid-drag, or it corrupts React Flow's hit-testing for
-  // the handle under the cursor.
+  // the handle under the cursor and defeats live node-position tracking.
   const connectionInProgress = useConnection((c) => c.inProgress);
+  const isNodeDragging = useDiagramStore((s) => s.isNodeDragging);
+  const hoverFrozen = connectionInProgress || isNodeDragging;
 
   if (!sourceNode || !targetNode || !data) return null;
 
@@ -55,8 +57,8 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
         <div
           className={`graph-edge__label ${data.dimmed ? 'graph-edge__label--dimmed' : ''}`}
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-          onMouseEnter={() => !connectionInProgress && setHover({ kind: 'edge', id })}
-          onMouseLeave={() => !connectionInProgress && setHover(null)}
+          onMouseEnter={() => !hoverFrozen && setHover({ kind: 'edge', id })}
+          onMouseLeave={() => !hoverFrozen && setHover(null)}
           onClick={(e) => {
             e.stopPropagation();
             select({ kind: 'edge', id });

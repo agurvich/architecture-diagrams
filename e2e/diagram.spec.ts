@@ -85,6 +85,46 @@ test('frame player steps forward and back through the narrated sequence', async 
   await expect(title).toContainText('1. Physical topology');
 });
 
+test('dragging a node tracks the cursor live instead of jumping only on release', async ({ page }) => {
+  const node = page.locator('[data-id="client"]');
+  const startBox = (await node.boundingBox())!;
+  const startCenter = { x: startBox.x + startBox.width / 2, y: startBox.y + startBox.height / 2 };
+  const dx = 0;
+  const dy = 220;
+
+  await page.mouse.move(startCenter.x, startCenter.y);
+  await page.mouse.down();
+  await page.waitForTimeout(50);
+  // Move halfway, in several small steps so real mousemove events fire along the way.
+  await page.mouse.move(startCenter.x + dx / 2, startCenter.y + dy / 2, { steps: 10 });
+  await page.waitForTimeout(50);
+
+  const midBox = (await node.boundingBox())!;
+  // The node must have already moved partway — not still sitting at its
+  // start position waiting for mouseup to "teleport" it.
+  expect(midBox.y).toBeGreaterThan(startBox.y + dy / 4);
+  expect(midBox.y).toBeLessThan(startBox.y + (dy * 3) / 4);
+
+  await page.mouse.move(startCenter.x + dx, startCenter.y + dy, { steps: 10 });
+  await page.waitForTimeout(50);
+  await page.mouse.up();
+
+  const endBox = (await node.boundingBox())!;
+  expect(Math.abs(endBox.y - (startBox.y + dy))).toBeLessThan(20);
+
+  // Confirm the drop position — not some intermediate one — was what got
+  // persisted. Reading localStorage directly (rather than comparing
+  // on-screen boxes post-reload) sidesteps fitView re-centering the
+  // viewport differently now that this node's position has changed.
+  await expect
+    .poll(async () => {
+      const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
+      const diagram = raw ? JSON.parse(raw) : null;
+      return diagram?.nodes.find((n: { id: string }) => n.id === 'client')?.position.y;
+    })
+    .toBeGreaterThan(dy - 20);
+});
+
 test('dragging from a handle to another node opens the tagging popover and creates an edge', async ({ page }) => {
   const source = page.locator('[data-id="client"] .react-flow__handle-right');
   const target = page.locator('[data-id="db"] .react-flow__handle-left');

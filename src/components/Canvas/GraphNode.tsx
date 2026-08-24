@@ -12,15 +12,19 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   const toggleExpand = useDiagramStore((s) => s.toggleExpand);
   // Hover changes recompute the effective graph, replacing every node/edge
   // object. Doing that mid-drag corrupts React Flow's own pointer
-  // hit-testing for the handle under the cursor, silently breaking
-  // drag-to-connect on any node the cursor passes near en route. Freezing
-  // hover while a connection is in progress avoids the churn entirely.
+  // hit-testing for the handle under the cursor (breaking drag-to-connect)
+  // and, for a node drag, causes the dragged node to snap back to its
+  // pre-drag position on every intermediate re-render since we only commit
+  // the new position on drag stop. Freezing hover during either kind of
+  // drag avoids the churn entirely.
   const connectionInProgress = useConnection((c) => c.inProgress);
+  const isNodeDragging = useDiagramStore((s) => s.isNodeDragging);
+  const hoverFrozen = connectionInProgress || isNodeDragging;
   const onHoverEnter = () => {
-    if (!connectionInProgress) setHover({ kind: 'node', id });
+    if (!hoverFrozen) setHover({ kind: 'node', id });
   };
   const onHoverLeave = () => {
-    if (!connectionInProgress) setHover(null);
+    if (!hoverFrozen) setHover(null);
   };
 
   const classNames = [

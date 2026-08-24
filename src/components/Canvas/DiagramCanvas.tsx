@@ -96,6 +96,7 @@ export function DiagramCanvas() {
   const setHover = useDiagramStore((s) => s.setHover);
   const select = useDiagramStore((s) => s.select);
   const updateNode = useDiagramStore((s) => s.updateNode);
+  const setNodeDragging = useDiagramStore((s) => s.setNodeDragging);
 
   const [pending, setPending] = useState<PendingConnection | null>(null);
 
@@ -153,11 +154,29 @@ export function DiagramCanvas() {
     [effectiveGraph.visibleEdges],
   );
 
-  const onNodeDragStop: OnNodeDrag<GraphNodeType> = useCallback(
+  const onNodeDragStart: OnNodeDrag<GraphNodeType> = useCallback(() => {
+    setNodeDragging(true);
+  }, [setNodeDragging]);
+
+  // We render nodes as a fully controlled prop (no onNodesChange wired up),
+  // so React Flow has no mechanism of its own to move a node on screen
+  // during a drag — it only computes the final position for
+  // onNodeDragStop. Feeding the position back on every tick via onNodeDrag
+  // is what makes the node actually track the cursor instead of jumping to
+  // its destination only once the pointer is released.
+  const onNodeDrag: OnNodeDrag<GraphNodeType> = useCallback(
     (_event, node) => {
       updateNode(node.id, { position: node.position });
     },
     [updateNode],
+  );
+
+  const onNodeDragStop: OnNodeDrag<GraphNodeType> = useCallback(
+    (_event, node) => {
+      setNodeDragging(false);
+      updateNode(node.id, { position: node.position });
+    },
+    [updateNode, setNodeDragging],
   );
 
   const onConnectEnd: OnConnectEnd = useCallback(
@@ -192,6 +211,8 @@ export function DiagramCanvas() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         connectionMode={ConnectionMode.Loose}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onConnectEnd={onConnectEnd}
         onNodeClick={onNodeClick}
