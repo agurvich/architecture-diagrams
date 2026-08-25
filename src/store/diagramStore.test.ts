@@ -81,7 +81,7 @@ describe('diagramStore — frame highlight authoring', () => {
     expect(frame.highlighted?.sort()).toEqual(['a', 'b']);
   });
 
-  it('setEditingHighlightsForFrame(id) also jumps to that frame\'s own lens/expand state', () => {
+  it("setEditingHighlightsForFrame(id) also jumps to that frame's own lens/expand state", () => {
     const { saveFrame, toggleEdgeSet, setEditingHighlightsForFrame } = useDiagramStore.getState();
     // Capture a frame with only the first lens active, then flip lenses
     // around before entering edit mode — editing should restore the
@@ -98,5 +98,48 @@ describe('diagramStore — frame highlight authoring', () => {
 
     setEditingHighlightsForFrame(null);
     expect(useDiagramStore.getState().editingHighlightsForFrameId).toBeNull();
+  });
+});
+
+describe('diagramStore — import and reset to imported', () => {
+  beforeEach(() => {
+    useDiagramStore.getState().loadSeed();
+  });
+
+  const importedJson = JSON.stringify({
+    nodes: [{ id: 'imported-node', label: 'Imported Node', position: { x: 0, y: 0 }, metadata: {} }],
+    edges: [],
+    edgeSets: [{ id: 'set-1', name: 'Set 1', color: '#fff' }],
+    frames: [],
+  });
+
+  it('resetToImported is a no-op when nothing has been imported this session', () => {
+    const before = useDiagramStore.getState().diagram;
+    useDiagramStore.getState().resetToImported();
+    expect(useDiagramStore.getState().diagram).toBe(before);
+  });
+
+  it('importJSON loads the file and remembers it; resetToImported returns to it after further edits', () => {
+    useDiagramStore.getState().importJSON(importedJson);
+    expect(useDiagramStore.getState().diagram.nodes.map((n) => n.id)).toEqual(['imported-node']);
+
+    useDiagramStore.getState().addNode({ label: 'Extra', position: { x: 0, y: 0 }, metadata: {} });
+    expect(useDiagramStore.getState().diagram.nodes.length).toBe(2);
+
+    useDiagramStore.getState().resetToImported();
+    expect(useDiagramStore.getState().diagram.nodes.map((n) => n.id)).toEqual(['imported-node']);
+  });
+
+  it('resetToImported clears view state the same way loadSeed does', () => {
+    useDiagramStore.getState().importJSON(importedJson);
+    useDiagramStore.getState().select({ kind: 'node', id: 'imported-node' });
+    useDiagramStore.getState().toggleExpand('imported-node');
+
+    useDiagramStore.getState().resetToImported();
+
+    const state = useDiagramStore.getState();
+    expect(state.selected).toBeNull();
+    expect(state.expandedNodes.size).toBe(0);
+    expect(state.currentFrameId).toBeNull();
   });
 });

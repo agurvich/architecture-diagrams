@@ -8,13 +8,19 @@ import {
   InvalidDiagramError,
   exportDiagramJSON,
   loadFromLocalStorage,
+  loadLastImportedDiagram,
   parseImportedDiagramJSON,
+  saveLastImportedDiagram,
   saveToLocalStorageDebounced,
 } from './persistence';
 import { anchorIdFor, isAnchorId } from '../engine/actorAnchor';
 
 function cloneSeed(): Diagram {
   return JSON.parse(JSON.stringify(seedDiagram));
+}
+
+function cloneDiagram(diagram: Diagram): Diagram {
+  return JSON.parse(JSON.stringify(diagram));
 }
 
 /** Fills in colorPalette for diagrams saved/imported before that field existed. */
@@ -36,6 +42,8 @@ interface DiagramStore {
   /** Nodes selected via React Flow's own marquee (shift-drag) box-select. */
   multiSelectedNodeIds: Set<NodeId>;
   currentFrameId: FrameId | null;
+  /** Snapshot of the last successfully imported JSON, so resetToImported can return to it even after further edits — null until an import has happened (this session or a previous one, since it's also persisted). */
+  lastImportedDiagram: Diagram | null;
   /**
    * When set, clicking a node/edge on the canvas toggles its membership in
    * this frame's `highlighted` list instead of selecting it — the
@@ -54,6 +62,8 @@ interface DiagramStore {
 
   loadSeed: () => void;
   importJSON: (json: string) => void;
+  /** Reloads whatever was last imported (see lastImportedDiagram) — a no-op if nothing has been imported yet. */
+  resetToImported: () => void;
   exportJSON: () => string;
   clearImportError: () => void;
   setNodeDragging: (dragging: boolean) => void;
@@ -131,6 +141,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     multiSelectedNodeIds: new Set(),
     currentFrameId: null,
     editingHighlightsForFrameId: null,
+    lastImportedDiagram: loadLastImportedDiagram(),
     importError: null,
     isNodeDragging: false,
 
@@ -156,6 +167,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
       try {
         const diagram = normalizeDiagram(parseImportedDiagramJSON(json));
         saveToLocalStorageDebounced(diagram);
+        saveLastImportedDiagram(diagram);
         set({
           diagram,
           activeSets: defaultActiveSets(diagram),
@@ -164,11 +176,31 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
           selected: null,
           multiSelectedNodeIds: new Set(),
           currentFrameId: null,
+          editingHighlightsForFrameId: null,
+          lastImportedDiagram: diagram,
           importError: null,
         });
       } catch (err) {
         set({ importError: err instanceof InvalidDiagramError ? err.message : 'Failed to import diagram.' });
       }
+    },
+
+    resetToImported: () => {
+      const imported = get().lastImportedDiagram;
+      if (!imported) return;
+      const diagram = cloneDiagram(imported);
+      saveToLocalStorageDebounced(diagram);
+      set({
+        diagram,
+        activeSets: defaultActiveSets(diagram),
+        expandedNodes: new Set(),
+        hoverTarget: null,
+        selected: null,
+        multiSelectedNodeIds: new Set(),
+        currentFrameId: null,
+        editingHighlightsForFrameId: null,
+        importError: null,
+      });
     },
 
     exportJSON: () => exportDiagramJSON(get().diagram),

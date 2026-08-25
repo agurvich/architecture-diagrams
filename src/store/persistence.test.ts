@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Diagram } from '../types/diagram';
-import { InvalidDiagramError, exportDiagramJSON, parseImportedDiagramJSON } from './persistence';
+import {
+  InvalidDiagramError,
+  exportDiagramJSON,
+  loadLastImportedDiagram,
+  parseImportedDiagramJSON,
+  saveLastImportedDiagram,
+} from './persistence';
 
 const validDiagram: Diagram = {
   nodes: [{ id: 'n1', label: 'N1', position: { x: 0, y: 0 }, metadata: {} }],
@@ -25,5 +31,15 @@ describe('persistence', () => {
     expect(() => parseImportedDiagramJSON(JSON.stringify({ nodes: [] }))).toThrow(InvalidDiagramError);
     expect(() => parseImportedDiagramJSON('null')).toThrow(InvalidDiagramError);
     expect(() => parseImportedDiagramJSON('42')).toThrow(InvalidDiagramError);
+  });
+
+  it('returns null for the last-imported snapshot when nothing has been imported yet', () => {
+    window.localStorage.removeItem('architecture-diagrams:last-imported-diagram');
+    expect(loadLastImportedDiagram()).toBeNull();
+  });
+
+  it('round-trips the last-imported snapshot through its own storage key', () => {
+    saveLastImportedDiagram(validDiagram);
+    expect(loadLastImportedDiagram()).toEqual(validDiagram);
   });
 });

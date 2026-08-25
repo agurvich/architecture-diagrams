@@ -7,6 +7,8 @@ export function Toolbar() {
   const diagram = useDiagramStore((s) => s.diagram);
   const exportJSON = useDiagramStore((s) => s.exportJSON);
   const importJSON = useDiagramStore((s) => s.importJSON);
+  const resetToImported = useDiagramStore((s) => s.resetToImported);
+  const hasImported = useDiagramStore((s) => s.lastImportedDiagram !== null);
   const loadSeed = useDiagramStore((s) => s.loadSeed);
   const importError = useDiagramStore((s) => s.importError);
   const clearImportError = useDiagramStore((s) => s.clearImportError);
@@ -67,6 +69,11 @@ export function Toolbar() {
           Import JSON
         </Button>
         <input ref={fileInputRef} type="file" accept="application/json" hidden onChange={handleFileChange} />
+        {hasImported && (
+          <Button size="sm" variant="outline" onClick={resetToImported} title="Reload the last JSON file you imported, discarding edits made since">
+            Reset to imported
+          </Button>
+        )}
         <Button size="sm" variant="outline" onClick={loadSeed}>
           Reset to demo
         </Button>
