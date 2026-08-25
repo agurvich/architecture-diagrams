@@ -29,7 +29,9 @@ test('adding a node creates it, selects it, and supports color/icon/rename', asy
   await expect(page.locator('.graph-node', { hasText: 'Redis Cache' }).locator('.graph-node__icon')).toBeVisible();
 
   await panel.locator('input[type="color"]').fill('#e0475a');
-  await expect(page.locator('.graph-node', { hasText: 'Redis Cache' })).toHaveCSS('border-left-color', 'rgb(224, 71, 90)');
+  await expect(
+    page.locator('.graph-node', { hasText: 'Redis Cache' }).locator('.graph-node__icon-bar'),
+  ).toHaveCSS('background-color', 'rgb(224, 71, 90)');
 });
 
 test('right-clicking empty canvas opens a menu to add a node at that position', async ({ page }) => {

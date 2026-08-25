@@ -25,7 +25,7 @@ const HANDLE_POSITIONS = [Position.Top, Position.Right, Position.Bottom, Positio
 const DEFAULT_ACCENT = '#9ca3af';
 
 const NODE_BASE =
-  'graph-node relative flex h-full w-full items-center justify-center gap-1.5 rounded-lg border-[1.5px] border-l-4 border-gray-400 bg-white px-2.5 py-1.5 text-center text-xs font-medium text-foreground transition-[opacity,box-shadow] duration-150';
+  'graph-node relative flex h-full w-full items-stretch overflow-hidden rounded-lg border-[1.5px] border-border bg-white text-center text-xs font-medium text-foreground transition-[opacity,box-shadow] duration-150';
 
 export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   const setHover = useDiagramStore((s) => s.setHover);
@@ -59,8 +59,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
     NODE_BASE,
     `graph-node--${data.renderMode}`,
     data.renderMode === 'collapsed-group' && 'border-2 bg-muted/60',
-    data.renderMode === 'expanded-container' &&
-      'items-start justify-start rounded-lg border-2 border-dashed bg-muted/30 p-0',
+    data.renderMode === 'expanded-container' && 'flex-col items-stretch rounded-lg border-2 border-dashed bg-muted/30 p-0',
     data.dimmed && 'graph-node--dimmed opacity-25',
     data.highlighted && 'graph-node--highlighted shadow-[0_0_0_2px_theme(colors.amber.500)]',
     selected && 'graph-node--selected shadow-[0_0_0_2px_var(--primary)]',
@@ -78,12 +77,10 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
 
   const accentColor = data.color ?? DEFAULT_ACCENT;
   const accentStyle: React.CSSProperties = {
-    borderLeftColor: accentColor,
-    // A colored node washes its whole card, not just the border strip —
-    // a 4px accent line was too easy to miss at a glance in a busy
-    // diagram. Left unset (falling back to the class-based bg-white/
-    // bg-muted) when the node has no explicit color, so "no color" still
-    // reads as visually distinct from "has a color".
+    // A colored node washes the rest of its card (behind the label), not
+    // just the color bar — left unset (falling back to the class-based
+    // bg-white/bg-muted) when the node has no explicit color, so "no
+    // color" still reads as visually distinct from "has a color".
     background: data.color ? `color-mix(in oklch, ${data.color}, white 88%)` : undefined,
   };
   // Three states: a pinned icon key always wins; a pinned `null` means no
@@ -94,15 +91,18 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   const resolvedIconKey =
     data.icon === null ? null : (data.icon ?? guessIconKey(data.label, Object.values(data.metadata)));
   const NodeIcon = resolvedIconKey ? getIconComponent(resolvedIconKey) : undefined;
-  // A colored badge behind the icon (rather than just tinting the glyph)
-  // reads at a glance even in a dense diagram — a same-size monochrome
-  // icon blended into the label text next to it.
-  const icon = NodeIcon && (
+  // The color bar itself always renders (this is what used to be a thin
+  // border-left accent — widened and given the icon a home, rather than
+  // the icon sitting as a small badge separate from it) so pinning "no
+  // icon" doesn't also lose the node's color indicator; the icon, when
+  // there is one, sits inside it at full height for maximum legibility.
+  const iconSize = data.renderMode === 'expanded-container' ? 16 : 24;
+  const colorBar = (
     <span
-      className="graph-node__icon graph-node__icon-badge flex size-[22px] shrink-0 items-center justify-center rounded-md shadow-sm"
+      className="graph-node__icon-bar flex w-11 shrink-0 items-center justify-center self-stretch"
       style={{ background: accentColor }}
     >
-      <NodeIcon className="text-white" style={{ fontSize: 13 }} />
+      {NodeIcon && <NodeIcon className="graph-node__icon text-white" style={{ fontSize: iconSize }} />}
     </span>
   );
 
@@ -168,26 +168,29 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
     return (
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className={cn(className, 'group')} style={accentStyle} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
+          <div className={cn(className, 'group')} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
             <div
-              className="flex w-full cursor-pointer items-center gap-1.5 px-2.5 py-1.5 font-semibold"
+              className="flex w-full cursor-pointer items-stretch overflow-hidden rounded-t-[7px] font-semibold"
+              style={accentStyle}
               onClick={(e) => {
                 e.stopPropagation();
                 select({ kind: 'node', id });
               }}
             >
-              <button
-                className="graph-node__chevron cursor-pointer border-none bg-transparent p-0 px-0.5 text-[11px] leading-none"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleExpand(id);
-                }}
-                title="Collapse"
-              >
-                ▾
-              </button>
-              {icon}
-              <span className="graph-node__label overflow-hidden text-ellipsis">{data.label}</span>
+              {colorBar}
+              <div className="flex min-w-0 flex-1 items-center gap-1.5 px-2.5 py-1.5">
+                <button
+                  className="graph-node__chevron cursor-pointer border-none bg-transparent p-0 px-0.5 text-[11px] leading-none"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleExpand(id);
+                  }}
+                  title="Collapse"
+                >
+                  ▾
+                </button>
+                <span className="graph-node__label overflow-hidden text-ellipsis">{data.label}</span>
+              </div>
             </div>
             {handles}
           </div>
@@ -202,7 +205,6 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
       <ContextMenuTrigger asChild>
         <div
           className={cn(className, 'group cursor-pointer')}
-          style={accentStyle}
           onMouseEnter={onHoverEnter}
           onMouseLeave={onHoverLeave}
           onClick={(e) => {
@@ -210,25 +212,27 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
             select({ kind: 'node', id });
           }}
         >
-          {data.renderMode === 'collapsed-group' && (
-            <button
-              className="graph-node__chevron cursor-pointer border-none bg-transparent p-0 px-0.5 text-[11px] leading-none"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleExpand(id);
-              }}
-              title="Expand"
-            >
-              ▸
-            </button>
-          )}
-          {icon}
-          <span className="graph-node__label overflow-hidden text-ellipsis">{data.label}</span>
-          {data.renderMode === 'collapsed-group' && data.collapsedChildIds && (
-            <span className="graph-node__badge whitespace-nowrap rounded-full border px-1.5 py-px text-[10px] text-muted-foreground">
-              {data.collapsedChildIds.length} nodes
-            </span>
-          )}
+          {colorBar}
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2.5 py-1.5" style={accentStyle}>
+            {data.renderMode === 'collapsed-group' && (
+              <button
+                className="graph-node__chevron cursor-pointer border-none bg-transparent p-0 px-0.5 text-[11px] leading-none"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleExpand(id);
+                }}
+                title="Expand"
+              >
+                ▸
+              </button>
+            )}
+            <span className="graph-node__label overflow-hidden text-ellipsis">{data.label}</span>
+            {data.renderMode === 'collapsed-group' && data.collapsedChildIds && (
+              <span className="graph-node__badge whitespace-nowrap rounded-full border px-1.5 py-px text-[10px] text-muted-foreground">
+                {data.collapsedChildIds.length} nodes
+              </span>
+            )}
+          </div>
           {handles}
         </div>
       </ContextMenuTrigger>
