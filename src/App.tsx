@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { DiagramCanvas } from './components/Canvas/DiagramCanvas';
@@ -11,10 +11,39 @@ import { Toolbar } from './components/Toolbar/Toolbar';
 import { TooltipProvider } from './components/ui/tooltip';
 import { useDiagramStore } from './store/diagramStore';
 
+const FRAME_PARAM = 'frame';
+
 function App() {
   const selected = useDiagramStore((s) => s.selected);
+  const currentFrameId = useDiagramStore((s) => s.currentFrameId);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+
+  // Deep-link a frame via ?frame=<id> — on first mount, a valid param wins
+  // over whatever currentFrameId starts as (gotoFrame no-ops harmlessly on
+  // an unknown id). After that, the URL just mirrors currentFrameId, so
+  // stepping through the sequencer (or Next/Prev) keeps the address bar
+  // pointing at the frame actually on screen — reload or share the link
+  // and it resumes there. The ref makes the very first run skip writing
+  // (letting gotoFrame's own resulting state change trigger the write on
+  // the next run) so the initial deep link isn't clobbered before it's
+  // even applied.
+  const didInitFromUrl = useRef(false);
+  useEffect(() => {
+    if (!didInitFromUrl.current) {
+      didInitFromUrl.current = true;
+      const requested = new URLSearchParams(window.location.search).get(FRAME_PARAM);
+      if (requested) {
+        useDiagramStore.getState().gotoFrame(requested);
+        return;
+      }
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (currentFrameId) params.set(FRAME_PARAM, currentFrameId);
+    else params.delete(FRAME_PARAM);
+    const query = params.toString();
+    window.history.replaceState(null, '', query ? `?${query}` : window.location.pathname);
+  }, [currentFrameId]);
 
   return (
     <TooltipProvider delayDuration={300}>
