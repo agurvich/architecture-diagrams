@@ -36,8 +36,18 @@ function App() {
               </button>
               {!leftCollapsed && (
                 <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-2.5 pt-9">
-                  <EdgeSetTogglePanel />
-                  <HierarchyPanel />
+                  {/* Card (see ui/card.tsx) is `overflow-hidden` with the
+                      flexbox default `flex-shrink: 1` — without `shrink-0`
+                      here, a flex-col parent that's out of room silently
+                      *shrinks* each Card below its own content height and
+                      Card's own overflow-hidden clips the excess, instead
+                      of it ever reaching this div's overflow-y-auto. */}
+                  <div className="shrink-0">
+                    <EdgeSetTogglePanel />
+                  </div>
+                  <div className="shrink-0">
+                    <HierarchyPanel />
+                  </div>
                 </div>
               )}
             </aside>
@@ -59,8 +69,14 @@ function App() {
               </button>
               {!rightCollapsed && (
                 <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-2.5 pt-9">
-                  {selected && <PropertiesPanel />}
-                  <FrameSequencerPanel />
+                  {selected && (
+                    <div className="shrink-0">
+                      <PropertiesPanel />
+                    </div>
+                  )}
+                  <div className="shrink-0">
+                    <FrameSequencerPanel />
+                  </div>
                 </div>
               )}
             </aside>
