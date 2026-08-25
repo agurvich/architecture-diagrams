@@ -50,6 +50,28 @@ export const ICON_MATCH_RULES: IconMatchRule[] = [
   { pattern: 'distributed|nodes|peer to peer|p2p', iconKey: 'hexagon-nodes' },
   { pattern: 'arrow|flow direction|directional', iconKey: 'arrow' },
   { pattern: 'connector|line', iconKey: 'line' },
+  { pattern: 'copy|duplicate|clone', iconKey: 'copy' },
+  { pattern: 'paste', iconKey: 'paste' },
+  { pattern: 'download|fetch|pull down', iconKey: 'download' },
+  { pattern: 'upload|push up', iconKey: 'upload' },
+  { pattern: 'sync|refresh|rotate', iconKey: 'sync' },
+  // "archive" already means bulk/cold storage above; this is specifically
+  // for compressing/zipping a file, a different concept with the same word family.
+  { pattern: 'zip|unzip|compress|compressed', iconKey: 'archive-zip' },
+  { pattern: 'delete|remove|purge', iconKey: 'trash-can' },
+  { pattern: 'filter|filtering', iconKey: 'filter' },
+  { pattern: 'diff|compare|comparison', iconKey: 'code-compare' },
+  { pattern: 'branch|git branch', iconKey: 'code-branch' },
+  { pattern: 'merge|git merge', iconKey: 'code-merge' },
+  { pattern: 'pull request|merge request', iconKey: 'pull-request' },
+  { pattern: 'malware|virus|antivirus|av scan|virus scan', iconKey: 'shield-virus' },
+  { pattern: 'quarantine|blocked|banned|denylist|blocklist', iconKey: 'ban' },
+  { pattern: 'pass|passed|approved|success|successful', iconKey: 'circle-check' },
+  { pattern: 'fail|failed|rejected|failure', iconKey: 'circle-xmark' },
+  { pattern: 'test|testing|staging|qa|sandbox', iconKey: 'flask' },
+  { pattern: 'rocket|launch|go live|go-live', iconKey: 'rocket' },
+  { pattern: 'signal|status|health check|healthcheck', iconKey: 'signal' },
+  { pattern: 'microservice|microservices', iconKey: 'cubes' },
 
   // --- Networking ---
   { pattern: 'load balancer|balancer|lb|alb|nlb|elb', iconKey: 'gauge' },
@@ -68,7 +90,7 @@ export const ICON_MATCH_RULES: IconMatchRule[] = [
   },
   { pattern: 'api|endpoint|rest|graphql|webhook|grpc|rpc', iconKey: 'plug' },
   { pattern: 'cluster|pool', iconKey: 'layer-group' },
-  { pattern: 'subsystem|module|microservice|monolith', iconKey: 'sitemap' },
+  { pattern: 'subsystem|module|monolith', iconKey: 'sitemap' },
   { pattern: 'service|services', iconKey: 'gear' },
   { pattern: 'event|event bus|eventbridge|event-driven', iconKey: 'envelope' },
   { pattern: 'email|inbox|smtp', iconKey: 'envelope' },
@@ -88,6 +110,7 @@ export const ICON_MATCH_RULES: IconMatchRule[] = [
   // too), so the more specific plural rule needs to win by coming first.
   { pattern: 'users|team|tenant|tenants', iconKey: 'users' },
   { pattern: 'user|actor|customer', iconKey: 'user' },
+  { pattern: 'table', iconKey: 'table' },
 
   // --- Observability ---
   { pattern: 'chart|analytics|metrics|dashboard|grafana|prometheus|trace|tracing|jaeger|opentelemetry|apm', iconKey: 'chart' },
