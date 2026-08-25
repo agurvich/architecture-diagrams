@@ -160,6 +160,8 @@ import {
   FaDiagramProject,
   FaCircleNodes,
   FaHexagonNodes,
+  FaArrowRightLong,
+  FaMinus,
 } from 'react-icons/fa6';
 
 /**
@@ -340,6 +342,8 @@ export const ICON_OPTIONS: IconOption[] = [
   { key: "diagram-project", label: "Architecture Diagram", Icon: FaDiagramProject },
   { key: "circle-nodes", label: "Network / Cluster", Icon: FaCircleNodes },
   { key: "hexagon-nodes", label: "Distributed Nodes", Icon: FaHexagonNodes },
+  { key: "arrow", label: "Arrow / Flow", Icon: FaArrowRightLong },
+  { key: "line", label: "Line / Connector", Icon: FaMinus },
 ];
 
 const ICON_BY_KEY = new Map(ICON_OPTIONS.map((opt) => [opt.key, opt.Icon]));

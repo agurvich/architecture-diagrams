@@ -48,6 +48,8 @@ export const ICON_MATCH_RULES: IconMatchRule[] = [
   { pattern: 'maintenance|ops|operations|on-call|oncall', iconKey: 'wrench' },
   { pattern: 'architecture|topology|diagram', iconKey: 'diagram-project' },
   { pattern: 'distributed|nodes|peer to peer|p2p', iconKey: 'hexagon-nodes' },
+  { pattern: 'arrow|flow direction|directional', iconKey: 'arrow' },
+  { pattern: 'connector|line', iconKey: 'line' },
 
   // --- Networking ---
   { pattern: 'load balancer|balancer|lb|alb|nlb|elb', iconKey: 'gauge' },
