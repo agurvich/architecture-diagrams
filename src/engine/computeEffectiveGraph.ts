@@ -114,12 +114,14 @@ export function computeEffectiveGraph(
       acc.seenLabels.add(label);
       acc.labels.push(label);
     }
-    // A remembered compass anchor only means something when exactly one
-    // raw edge contributes to this merged edge, and neither of its
-    // endpoints got substituted by a collapsed ancestor (the handle was
-    // recorded against the original node's own border, not whatever
-    // container ends up standing in for it).
-    if (acc.originalEdgeIds.length > 1 || edge.sourceId !== vs || edge.targetId !== vt) {
+    // A remembered compass anchor (and actor attribution) only means
+    // something when exactly one raw edge contributes to this merged
+    // edge — a collapsed container is a node like any other, with its own
+    // real border and handles, so a substituted endpoint doesn't make the
+    // remembered side (top/left/etc.) meaningless: it still resolves
+    // against whatever box currently occupies that spot, live, via
+    // GraphEdge's own handle-position lookup.
+    if (acc.originalEdgeIds.length > 1) {
       acc.handleAmbiguous = true;
       acc.sourceHandle = undefined;
       acc.targetHandle = undefined;

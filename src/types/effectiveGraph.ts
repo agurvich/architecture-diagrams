@@ -38,19 +38,20 @@ export interface EffectiveEdge {
   /** Distinct, non-empty `metadata.label` values from the merged raw edges, in first-seen order. */
   labels: string[];
   /**
-   * A remembered compass anchor, carried through only when this merged
-   * edge resolves to exactly one raw edge whose own endpoints weren't
-   * substituted by a collapsed ancestor (i.e. it's unambiguous which
-   * node the handle actually belongs to). Undefined otherwise, meaning
-   * "use floating (dynamic) edge geometry".
+   * A remembered compass anchor, carried through when this merged edge
+   * resolves to exactly one raw edge — a collapsed ancestor standing in
+   * for the real endpoint is still a real node with its own border, so
+   * substitution doesn't make the remembered side ambiguous. Undefined
+   * for a merged edge (count > 1), meaning "use floating (dynamic) edge
+   * geometry".
    */
   sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
   targetHandle?: 'top' | 'right' | 'bottom' | 'left';
   /**
-   * The actor attributed to this action, carried through only when
-   * unambiguous (same condition as sourceHandle/targetHandle: exactly one
-   * raw edge merged in here, endpoints unsubstituted). Undefined for a
-   * merged edge or a plain edge with no attribution.
+   * The actor attributed to this action, carried through under the same
+   * condition as sourceHandle/targetHandle: exactly one raw edge merged
+   * in here. Undefined for a merged edge or a plain edge with no
+   * attribution.
    */
   actorId?: NodeId;
   dimmed: boolean;

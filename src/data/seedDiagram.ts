@@ -50,7 +50,7 @@ export const seedDiagram: Diagram = {
 
     {
       id: 'account-processing',
-      label: 'Processing Account',
+      label: 'Acquisition Account',
       position: { x: 50, y: 40 },
       metadata: { type: 'aws-account' },
       color: '#64748b',
@@ -120,12 +120,22 @@ export const seedDiagram: Diagram = {
 
     {
       id: 'account-ingest',
-      label: 'Ingest Account',
+      label: 'Viz Tools Account',
       position: { x: 1400, y: 400 },
       metadata: { type: 'aws-account' },
       color: '#64748b',
     },
     { id: 'ingest-bucket', label: 'Ingest Bucket', parentId: 'account-ingest', position: { x: 20, y: 40 }, metadata: { type: 's3' }, color: '#38b06a' },
+    { id: 'write-watermark', label: 'Write Watermark', parentId: 'account-ingest', position: { x: 220, y: 40 }, metadata: {} },
+    {
+      id: 'viztools-role',
+      label: 'Viz Tools Role',
+      parentId: 'account-ingest',
+      position: { x: 20, y: 140 },
+      metadata: { type: 'iam-role' },
+      color: '#f7b500',
+      isActor: true,
+    },
   ],
   edges: [
     // --- Control Flow: the Step Function's own state sequence ---
@@ -151,6 +161,7 @@ export const seedDiagram: Diagram = {
     { id: 'a-unscanned-clean', sourceId: 'unscanned-bucket', targetId: 'clean-bucket', sets: ['dataflow'], metadata: { label: 'CopyObject (clean)' }, actorId: 'avscan-role' },
     { id: 'a-unscanned-quarantine', sourceId: 'unscanned-bucket', targetId: 'quarantine-bucket', sets: ['dataflow'], metadata: { label: 'CopyObject (infected)' }, actorId: 'avscan-role' },
     { id: 'a-clean-ingest', sourceId: 'clean-bucket', targetId: 'ingest-bucket', sets: ['dataflow'], metadata: { label: 'Cross-account CopyObject' }, actorId: 'stepfn-role' },
+    { id: 'a-writewatermark-bucket', sourceId: 'write-watermark', targetId: 'watermark-bucket', sets: ['dataflow'], metadata: { label: 'Cross-account PutObject' }, actorId: 'viztools-role' },
 
     { id: 't-download', sourceId: 'download-file', targetId: anchorIdFor('a-archive-landing'), sets: ['dataflow'], metadata: {} },
     { id: 't-copytounscanned', sourceId: 'copy-to-unscanned', targetId: anchorIdFor('a-landing-unscanned'), sets: ['dataflow'], metadata: {} },

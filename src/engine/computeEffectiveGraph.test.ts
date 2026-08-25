@@ -150,6 +150,35 @@ describe('computeEffectiveGraph', () => {
     }
   });
 
+  it('carries sourceHandle/targetHandle/actorId through even when both endpoints are substituted by collapsed ancestors, as long as it is still a single raw edge', () => {
+    const diagram = makeFixture();
+    // Give 'db' a collapsed container of its own too, so this single
+    // a->db edge has BOTH endpoints substituted by a different collapsed
+    // ancestor at once — a collapsed group is a real node with its own
+    // border, not an excuse to fall back to floating geometry or drop the
+    // actor attribution (regression: this used to silently strip both,
+    // so toggling "Anchor" on such an edge visibly did nothing).
+    diagram.nodes.push({ id: 'db-group', label: 'DB Group', position: { x: 300, y: 0 }, metadata: {} });
+    diagram.nodes.find((n) => n.id === 'db')!.parentId = 'db-group';
+    const edge = diagram.edges.find((e) => e.id === 'e-a-db-data')!;
+    edge.sourceHandle = 'right';
+    edge.targetHandle = 'left';
+    edge.actorId = 'cache';
+
+    const { visibleEdges } = computeEffectiveGraph(diagram, {
+      activeSets: new Set(['data']),
+      expandedNodes: new Set(), // cluster and db-group both collapsed
+    });
+
+    const aToDb = visibleEdges.find((e) => e.originalEdgeIds.includes('e-a-db-data'))!;
+    expect(aToDb.visibleSourceId).toBe('cluster');
+    expect(aToDb.visibleTargetId).toBe('db-group');
+    expect(aToDb.count).toBe(1);
+    expect(aToDb.sourceHandle).toBe('right');
+    expect(aToDb.targetHandle).toBe('left');
+    expect(aToDb.actorId).toBe('cache');
+  });
+
   it('splits merged children back out into individual edges once expanded', () => {
     const diagram = makeFixture();
     const { visibleEdges } = computeEffectiveGraph(diagram, {
