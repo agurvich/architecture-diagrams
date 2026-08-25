@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useDiagramStore } from '../../../store/diagramStore';
 import type { NodeId } from '../../../types/diagram';
 import { ICON_OPTIONS, getIconComponent } from '../../../icons/registry';
@@ -85,6 +86,15 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
           type="text"
           value={node.label}
           onChange={(e) => updateNode(node.id, { label: e.target.value })}
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <Label htmlFor={`${idPrefix}-actor`}>Actor</Label>
+        <Switch
+          id={`${idPrefix}-actor`}
+          checked={Boolean(node.isActor)}
+          onCheckedChange={(checked) => updateNode(node.id, { isActor: checked })}
         />
       </div>
 

@@ -1,6 +1,6 @@
 import type { EdgeId, EdgeSetId, NodeId } from './diagram';
 
-export type RenderMode = 'leaf' | 'collapsed-group' | 'expanded-container';
+export type RenderMode = 'leaf' | 'collapsed-group' | 'expanded-container' | 'actor-anchor';
 
 export interface EffectiveNode {
   [key: string]: unknown;
@@ -14,6 +14,14 @@ export interface EffectiveNode {
   metadata: Record<string, string>;
   color?: string;
   icon?: string | null;
+  /** Eligible to be attributed as an action's actor, or as a trigger's source. */
+  isActor?: boolean;
+  /**
+   * actor-anchor nodes only: the effective edge id (the action) this
+   * anchor sits on and represents — clicking the anchor selects this
+   * edge rather than the (non-existent, synthetic) anchor "node" itself.
+   */
+  linkedEdgeId?: string;
   dimmed: boolean;
   highlighted: boolean;
 }
@@ -38,6 +46,13 @@ export interface EffectiveEdge {
    */
   sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
   targetHandle?: 'top' | 'right' | 'bottom' | 'left';
+  /**
+   * The actor attributed to this action, carried through only when
+   * unambiguous (same condition as sourceHandle/targetHandle: exactly one
+   * raw edge merged in here, endpoints unsubstituted). Undefined for a
+   * merged edge or a plain edge with no attribution.
+   */
+  actorId?: NodeId;
   dimmed: boolean;
   highlighted: boolean;
 }

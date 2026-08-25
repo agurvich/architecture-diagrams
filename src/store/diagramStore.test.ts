@@ -1,0 +1,51 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { useDiagramStore } from './diagramStore';
+import { anchorIdFor } from '../engine/actorAnchor';
+
+// Actor/action/trigger cascade rules: a trigger edge's targetId is a
+// synthetic anchor (anchorIdFor(actionEdgeId)), not a real node, so it
+// only makes sense alongside its action edge and can't be reversed.
+describe('diagramStore — actor/action/trigger cascades', () => {
+  beforeEach(() => {
+    useDiagramStore.getState().loadSeed();
+  });
+
+  function setup() {
+    const { addNode, addEdge, updateNode } = useDiagramStore.getState();
+    const a = addNode({ label: 'Bucket A', position: { x: 0, y: 0 }, metadata: {} });
+    const b = addNode({ label: 'Bucket B', position: { x: 200, y: 0 }, metadata: {} });
+    const step = addNode({ label: 'Copy step', position: { x: 0, y: 200 }, metadata: {} });
+    const actor = addNode({ label: 'AV Lambda Role', position: { x: 400, y: 0 }, metadata: {} });
+    updateNode(actor, { isActor: true });
+    const setId = useDiagramStore.getState().diagram.edgeSets[0].id;
+    const actionEdgeId = addEdge(a, b, [setId], undefined, undefined, actor);
+    const triggerEdgeId = addEdge(step, anchorIdFor(actionEdgeId), [setId]);
+    return { a, b, step, actor, actionEdgeId, triggerEdgeId };
+  }
+
+  it('deleteEdge on an action edge cascades to delete triggers pointing at its anchor', () => {
+    const { actionEdgeId, triggerEdgeId } = setup();
+    useDiagramStore.getState().deleteEdge(actionEdgeId);
+    const ids = useDiagramStore.getState().diagram.edges.map((e) => e.id);
+    expect(ids).not.toContain(actionEdgeId);
+    expect(ids).not.toContain(triggerEdgeId);
+  });
+
+  it('deleteNode on the actor clears actorId on its action edges and cascades to their triggers', () => {
+    const { actor, actionEdgeId, triggerEdgeId } = setup();
+    useDiagramStore.getState().deleteNode(actor);
+    const diagram = useDiagramStore.getState().diagram;
+    const action = diagram.edges.find((e) => e.id === actionEdgeId);
+    expect(action).toBeDefined();
+    expect(action!.actorId).toBeUndefined();
+    expect(diagram.edges.some((e) => e.id === triggerEdgeId)).toBe(false);
+  });
+
+  it('reverseEdge does not touch a trigger edge (its targetId is a synthetic anchor, not a real node)', () => {
+    const { triggerEdgeId, step, actionEdgeId } = setup();
+    useDiagramStore.getState().reverseEdge(triggerEdgeId);
+    const trigger = useDiagramStore.getState().diagram.edges.find((e) => e.id === triggerEdgeId)!;
+    expect(trigger.sourceId).toBe(step);
+    expect(trigger.targetId).toBe(anchorIdFor(actionEdgeId));
+  });
+});

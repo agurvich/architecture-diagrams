@@ -97,6 +97,25 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   // icon" doesn't also lose the node's color indicator; the icon, when
   // there is one, sits inside it at full height for maximum legibility.
   const iconSize = data.renderMode === 'expanded-container' ? 16 : 24;
+
+  if (data.renderMode === 'actor-anchor') {
+    return (
+      <div
+        className="graph-node__anchor flex cursor-pointer items-center justify-center rounded-full border-2 border-white shadow-md transition-opacity duration-150"
+        style={{ width: '100%', height: '100%', background: accentColor, opacity: data.dimmed ? 0.25 : 1 }}
+        title={`Action by ${data.label}`}
+        onMouseEnter={() => !hoverFrozen && data.linkedEdgeId && setHover({ kind: 'edge', id: data.linkedEdgeId })}
+        onMouseLeave={() => !hoverFrozen && setHover(null)}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (data.linkedEdgeId) select({ kind: 'edge', id: data.linkedEdgeId });
+        }}
+      >
+        {NodeIcon && <NodeIcon className="text-white" style={{ fontSize: 14 }} />}
+        <Handle id={Position.Top} type="source" position={Position.Top} className="!opacity-0" />
+      </div>
+    );
+  }
   const colorBar = (
     <span
       className="graph-node__icon-bar flex w-11 shrink-0 items-center justify-center self-stretch"

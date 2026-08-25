@@ -18,6 +18,8 @@ export interface DiagramNode {
    * src/icons/registry.ts.
    */
   icon?: string | null;
+  /** Marks this node as eligible to be attributed as the actor performing an action edge (see DiagramEdge.actorId) or triggering one. */
+  isActor?: boolean;
 }
 
 export interface DiagramEdge {
@@ -36,6 +38,17 @@ export interface DiagramEdge {
    */
   sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
   targetHandle?: 'top' | 'right' | 'bottom' | 'left';
+  /**
+   * The actor (a node with isActor: true) responsible for this action —
+   * independent of sourceId/targetId, since the actor performing an
+   * action isn't necessarily either endpoint (e.g. an IAM role copying
+   * between two buckets it's not itself drawn connected to). Rendered as
+   * a small anchor node at this edge's midpoint (see engine/actorAnchor.ts)
+   * that a "trigger" edge — a plain DiagramEdge whose own targetId is that
+   * anchor's id — can point at to show a specific process step causing
+   * this specific action, rather than just the actor in general.
+   */
+  actorId?: NodeId;
 }
 
 export interface EdgeSet {

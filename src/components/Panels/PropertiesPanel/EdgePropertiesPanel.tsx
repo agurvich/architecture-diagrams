@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { useDiagramStore } from '../../../store/diagramStore';
 import { computeEffectiveGraph } from '../../../engine/computeEffectiveGraph';
 import { getFloatingEdgeParams } from '../../Canvas/floatingEdgeUtils';
+import { isAnchorId } from '../../../engine/actorAnchor';
 import type { DiagramNode, EdgeId, NodeId } from '../../../types/diagram';
 
 /** Every strict ancestor of nodeId, nearest first — walking parentId up to the root. */
@@ -96,6 +97,12 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
   const rawEdge = diagram.edges.find((e) => e.id === rawEdgeId);
   if (!rawEdge) return null;
 
+  // A trigger edge (target is an actor-anchor, not a real node) has no
+  // attribution of its own to set — the actor it points at already IS the
+  // action's own attribution.
+  const isTrigger = isAnchorId(rawEdge.targetId);
+  const actorNodes = diagram.nodes.filter((n) => n.isActor);
+
   const toggleSet = (setId: string) => {
     const has = rawEdge.sets.includes(setId);
     updateEdge(rawEdgeId, { sets: has ? rawEdge.sets.filter((s) => s !== setId) : [...rawEdge.sets, setId] });
@@ -144,6 +151,25 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
           );
         })}
       </div>
+
+      {!isTrigger && actorNodes.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={`${idPrefix}-actor`}>Actor</Label>
+          <select
+            id={`${idPrefix}-actor`}
+            className="h-9 rounded-md border bg-transparent px-2 text-sm shadow-xs"
+            value={rawEdge.actorId ?? ''}
+            onChange={(e) => updateEdge(rawEdgeId, { actorId: e.target.value || undefined })}
+          >
+            <option value="">(none)</option>
+            {actorNodes.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <Label htmlFor={`${idPrefix}-anchor`}>Anchor</Label>

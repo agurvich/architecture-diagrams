@@ -203,6 +203,22 @@ describe('computeEffectiveGraph', () => {
     expect(clusterToDb.labels).toEqual([]);
   });
 
+  it('carries an unambiguous actorId through to the effective edge, but drops it once merged', () => {
+    const diagram = makeFixture();
+    diagram.edges.find((e) => e.id === 'e-a-b-internal')!.actorId = 'db';
+
+    const expanded = computeEffectiveGraph(diagram, { activeSets: allSets, expandedNodes: new Set(['cluster']) });
+    const aToB = expanded.visibleEdges.find((e) => e.originalEdgeIds.includes('e-a-b-internal'))!;
+    expect(aToB.actorId).toBe('db');
+
+    diagram.edges.find((e) => e.id === 'e-a-db-infra')!.actorId = 'cache';
+    diagram.edges.find((e) => e.id === 'e-b-db-infra')!.actorId = 'cache';
+    const collapsed = computeEffectiveGraph(diagram, { activeSets: allSets, expandedNodes: new Set() });
+    const clusterToDb = collapsed.visibleEdges.find((e) => e.visibleSourceId === 'cluster' && e.visibleTargetId === 'db')!;
+    expect(clusterToDb.count).toBeGreaterThan(1);
+    expect(clusterToDb.actorId).toBeUndefined();
+  });
+
   it('resolves frame-highlighted raw ids through to their effective node/edge', () => {
     const diagram = makeFixture();
     const { visibleNodes, visibleEdges } = computeEffectiveGraph(diagram, {

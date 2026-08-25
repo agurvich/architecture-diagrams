@@ -11,6 +11,7 @@ import {
   parseImportedDiagramJSON,
   saveToLocalStorageDebounced,
 } from './persistence';
+import { anchorIdFor, isAnchorId } from '../engine/actorAnchor';
 
 function cloneSeed(): Diagram {
   return JSON.parse(JSON.stringify(seedDiagram));
@@ -74,6 +75,7 @@ interface DiagramStore {
     sets: EdgeSetId[],
     sourceHandle?: 'top' | 'right' | 'bottom' | 'left',
     targetHandle?: 'top' | 'right' | 'bottom' | 'left',
+    actorId?: NodeId,
   ) => EdgeId;
   updateEdge: (id: EdgeId, patch: Partial<DiagramEdge>) => void;
   deleteEdge: (id: EdgeId) => void;
@@ -246,11 +248,23 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
       })),
 
     deleteNode: (id) => {
-      persistAndSet(set, (diagram) => ({
-        ...diagram,
-        nodes: diagram.nodes.filter((n) => n.id !== id).map((n) => (n.parentId === id ? { ...n, parentId: undefined } : n)),
-        edges: diagram.edges.filter((e) => e.sourceId !== id && e.targetId !== id),
-      }));
+      persistAndSet(set, (diagram) => {
+        // Any action edge attributed to this node loses its actor (the
+        // resource-to-resource relationship survives; only the "who did
+        // it" attribution goes dangling), and any trigger edge pointing at
+        // that now-actorless action's anchor cascades away with it — same
+        // idea as an edge cascading when the node it's attached to goes.
+        const orphanedAnchors = new Set(
+          diagram.edges.filter((e) => e.actorId === id).map((e) => anchorIdFor(e.id)),
+        );
+        return {
+          ...diagram,
+          nodes: diagram.nodes.filter((n) => n.id !== id).map((n) => (n.parentId === id ? { ...n, parentId: undefined } : n)),
+          edges: diagram.edges
+            .filter((e) => e.sourceId !== id && e.targetId !== id && !orphanedAnchors.has(e.targetId))
+            .map((e) => (e.actorId === id ? { ...e, actorId: undefined } : e)),
+        };
+      });
       set((state) => {
         const next = new Set(state.multiSelectedNodeIds);
         next.delete(id);
@@ -274,11 +288,11 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         return { ...diagram, colorPalette: [...palette, color] };
       }),
 
-    addEdge: (sourceId, targetId, sets, sourceHandle, targetHandle) => {
+    addEdge: (sourceId, targetId, sets, sourceHandle, targetHandle, actorId) => {
       const id = makeId('edge');
       persistAndSet(set, (diagram) => ({
         ...diagram,
-        edges: [...diagram.edges, { id, sourceId, targetId, sets, metadata: {}, sourceHandle, targetHandle }],
+        edges: [...diagram.edges, { id, sourceId, targetId, sets, metadata: {}, sourceHandle, targetHandle, actorId }],
       }));
       return id;
     },
@@ -289,14 +303,24 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         edges: diagram.edges.map((e) => (e.id === id ? { ...e, ...patch } : e)),
       })),
 
+    // Deleting an action edge cascades to any trigger edge pointing at its
+    // anchor — same reasoning as deleteNode cascading to edges touching
+    // the deleted node: a trigger with nothing left to point at is dead
+    // weight, not a broken reference to leave dangling.
     deleteEdge: (id) =>
-      persistAndSet(set, (diagram) => ({ ...diagram, edges: diagram.edges.filter((e) => e.id !== id) })),
+      persistAndSet(set, (diagram) => {
+        const anchorId = anchorIdFor(id);
+        return { ...diagram, edges: diagram.edges.filter((e) => e.id !== id && e.targetId !== anchorId) };
+      }),
 
+    // A trigger edge's targetId is a synthetic anchor, not a real node —
+    // swapping it into sourceId would be meaningless, so leave trigger
+    // edges untouched (the UI also hides "Reverse direction" for them).
     reverseEdge: (id) =>
       persistAndSet(set, (diagram) => ({
         ...diagram,
         edges: diagram.edges.map((e) =>
-          e.id === id
+          e.id === id && !isAnchorId(e.targetId)
             ? { ...e, sourceId: e.targetId, targetId: e.sourceId, sourceHandle: e.targetHandle, targetHandle: e.sourceHandle }
             : e,
         ),

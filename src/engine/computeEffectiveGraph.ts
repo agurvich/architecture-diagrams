@@ -63,6 +63,7 @@ export function computeEffectiveGraph(
       metadata: node.metadata,
       color: resolveColor(node.id),
       icon: node.icon,
+      isActor: node.isActor,
       dimmed: false,
       highlighted: false,
     });
@@ -76,7 +77,8 @@ export function computeEffectiveGraph(
     seenLabels: Set<string>;
     sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
     targetHandle?: 'top' | 'right' | 'bottom' | 'left';
-    /** True once a second raw edge (or one with a substituted endpoint) has joined — the remembered handle is no longer unambiguous. */
+    actorId?: NodeId;
+    /** True once a second raw edge (or one with a substituted endpoint) has joined — the remembered handle/actor is no longer unambiguous. */
     handleAmbiguous: boolean;
   }
   const accByKey = new Map<string, Accumulator>();
@@ -121,9 +123,11 @@ export function computeEffectiveGraph(
       acc.handleAmbiguous = true;
       acc.sourceHandle = undefined;
       acc.targetHandle = undefined;
+      acc.actorId = undefined;
     } else if (!acc.handleAmbiguous) {
       acc.sourceHandle = edge.sourceHandle;
       acc.targetHandle = edge.targetHandle;
+      acc.actorId = edge.actorId;
     }
   }
 
@@ -140,6 +144,7 @@ export function computeEffectiveGraph(
       labels: acc.labels,
       sourceHandle: acc.sourceHandle && acc.targetHandle ? acc.sourceHandle : undefined,
       targetHandle: acc.sourceHandle && acc.targetHandle ? acc.targetHandle : undefined,
+      actorId: acc.actorId,
       dimmed: false,
       highlighted: false,
     };

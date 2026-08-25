@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import type { EffectiveEdge } from '../../types/effectiveGraph';
 import { useDiagramStore } from '../../store/diagramStore';
 import { getFloatingEdgeParams } from './floatingEdgeUtils';
+import { isAnchorId } from '../../engine/actorAnchor';
 
 export type GraphEdgeType = Edge<EffectiveEdge, 'graphEdge'>;
 
@@ -66,6 +67,13 @@ export function GraphEdge({
     ? getBezierPath({ sourceX: sx, sourceY: sy, sourcePosition, targetX: tx, targetY: ty, targetPosition })
     : getStraightPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty });
 
+  // A trigger edge's own targetId is a synthetic actor-anchor id (see
+  // engine/actorAnchor.ts), not a real node — it points at a specific
+  // action rather than a resource, so it renders distinctly from a plain
+  // control-flow edge and can't be reversed (there's nothing sensible to
+  // put in sourceId).
+  const isTrigger = isAnchorId(data.visibleTargetId) || isAnchorId(data.visibleSourceId);
+
   const setColors = data.sets.map((sid) => edgeSets.find((s) => s.id === sid)?.color).filter(Boolean) as string[];
   const strokeColor = setColors.length === 1 ? setColors[0] : '#9098a8';
   const isMultiSet = setColors.length > 1;
@@ -85,7 +93,11 @@ export function GraphEdge({
         id={id}
         path={edgePath}
         className={className}
-        style={{ stroke: strokeColor, strokeWidth: data.highlighted ? 3 : 2, strokeDasharray: isMultiSet ? '6 3' : undefined }}
+        style={{
+          stroke: strokeColor,
+          strokeWidth: data.highlighted ? 3 : 2,
+          strokeDasharray: isTrigger ? '2 4' : isMultiSet ? '6 3' : undefined,
+        }}
         interactionWidth={16}
         markerEnd="url(#graph-edge-arrow)"
       />
@@ -130,7 +142,9 @@ export function GraphEdge({
             <ContextMenuItem onClick={() => select({ kind: 'edge', id })}>Edit properties…</ContextMenuItem>
             {singleRawEdgeId ? (
               <>
-                <ContextMenuItem onClick={() => reverseEdge(singleRawEdgeId)}>Reverse direction</ContextMenuItem>
+                {!isTrigger && (
+                  <ContextMenuItem onClick={() => reverseEdge(singleRawEdgeId)}>Reverse direction</ContextMenuItem>
+                )}
                 <ContextMenuItem variant="destructive" onClick={() => deleteEdge(singleRawEdgeId)}>
                   Delete edge
                 </ContextMenuItem>

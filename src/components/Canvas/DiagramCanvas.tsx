@@ -17,6 +17,8 @@ import '@xyflow/react/dist/style.css';
 import { useDiagramStore } from '../../store/diagramStore';
 import { computeEffectiveGraph } from '../../engine/computeEffectiveGraph';
 import { buildAncestryIndex, isAncestor } from '../../engine/ancestry';
+import { anchorIdFor } from '../../engine/actorAnchor';
+import { guessIconKey } from '../../icons/iconMatcher';
 import type { EffectiveNode } from '../../types/effectiveGraph';
 import { GraphNode, type GraphNodeType } from './GraphNode';
 import { GraphEdge, type GraphEdgeType } from './GraphEdge';
@@ -26,6 +28,7 @@ import { PaneContextMenu } from './PaneContextMenu';
 const LEAF_SIZE = { width: 170, height: 64 };
 const CONTAINER_PADDING = 20;
 const CONTAINER_HEADER_HEIGHT = 34;
+const ANCHOR_SIZE = 26;
 
 const nodeTypes = { graphNode: GraphNode };
 const edgeTypes = { graphEdge: GraphEdge };
@@ -127,6 +130,20 @@ export function DiagramCanvas() {
   const sizes = useMemo(() => computeContainerSizes(effectiveGraph.visibleNodes), [effectiveGraph.visibleNodes]);
   const orderedNodes = useMemo(() => topoSort(effectiveGraph.visibleNodes), [effectiveGraph.visibleNodes]);
 
+  // Absolute (canvas-space) position of every visible node, resolved by
+  // walking down from each root — nested nodes' own `position` is only
+  // relative to whatever container currently holds them. Needed to place
+  // an actor-anchor at an action edge's real midpoint below, since that
+  // math can't be expressed in either endpoint's local coordinate space.
+  const absolutePositions = useMemo(() => {
+    const map = new Map<string, { x: number; y: number }>();
+    for (const n of orderedNodes) {
+      const parentAbs = n.parentId ? map.get(n.parentId) : undefined;
+      map.set(n.id, { x: (parentAbs?.x ?? 0) + n.position.x, y: (parentAbs?.y ?? 0) + n.position.y });
+    }
+    return map;
+  }, [orderedNodes]);
+
   const rfNodes: GraphNodeType[] = useMemo(
     () =>
       orderedNodes.map((n) => {
@@ -186,6 +203,73 @@ export function DiagramCanvas() {
       }),
     [effectiveGraph.visibleEdges],
   );
+
+  // Every unambiguous action edge (count === 1, actorId set) gets a small
+  // synthetic node at its own midpoint carrying the actor's icon — this is
+  // what a trigger edge (see engine/actorAnchor.ts) connects to, so a
+  // process step can point at this *specific* action rather than just "the
+  // actor" in general, which would be ambiguous the moment an actor
+  // performs more than one action in the diagram. Position is derived
+  // live from the current render, never stored.
+  const actorAnchors: GraphNodeType[] = useMemo(() => {
+    const anchors: GraphNodeType[] = [];
+    for (const e of effectiveGraph.visibleEdges) {
+      if (e.count !== 1 || !e.actorId) continue;
+      const actor = diagram.nodes.find((n) => n.id === e.actorId);
+      if (!actor) continue;
+      const sourcePos = absolutePositions.get(e.visibleSourceId);
+      const targetPos = absolutePositions.get(e.visibleTargetId);
+      const sourceSize = sizes.get(e.visibleSourceId) ?? LEAF_SIZE;
+      const targetSize = sizes.get(e.visibleTargetId) ?? LEAF_SIZE;
+      if (!sourcePos || !targetPos) continue;
+
+      const midX = (sourcePos.x + sourceSize.width / 2 + targetPos.x + targetSize.width / 2) / 2;
+      const midY = (sourcePos.y + sourceSize.height / 2 + targetPos.y + targetSize.height / 2) / 2;
+      const resolvedIconKey =
+        actor.icon === null ? null : (actor.icon ?? guessIconKey(actor.label, Object.values(actor.metadata)));
+
+      const data: EffectiveNode = {
+        id: anchorIdFor(e.originalEdgeIds[0]),
+        label: actor.label,
+        renderMode: 'actor-anchor',
+        position: { x: midX - ANCHOR_SIZE / 2, y: midY - ANCHOR_SIZE / 2 },
+        metadata: {},
+        color: actor.color,
+        icon: resolvedIconKey,
+        linkedEdgeId: e.id,
+        dimmed: e.dimmed,
+        highlighted: e.highlighted,
+      };
+      anchors.push({
+        id: data.id,
+        type: 'graphNode',
+        position: data.position,
+        data,
+        style: { width: ANCHOR_SIZE, height: ANCHOR_SIZE },
+        width: ANCHOR_SIZE,
+        height: ANCHOR_SIZE,
+        // Not part of the authored diagram — dragging or marquee-selecting
+        // it as though it were a real node makes no sense; it only exists
+        // as a connection target for trigger edges (handled via its own
+        // onClick in GraphNode, which selects the underlying action edge
+        // instead of ever treating this as a selected node).
+        draggable: false,
+        selectable: false,
+      });
+    }
+    return anchors;
+  }, [effectiveGraph.visibleEdges, diagram.nodes, absolutePositions, sizes]);
+
+  const allRfNodes: GraphNodeType[] = useMemo(() => [...rfNodes, ...actorAnchors], [rfNodes, actorAnchors]);
+
+  // A trigger edge whose action edge is currently merged away by collapse
+  // (so no anchor was synthesized for it this render) has nothing valid to
+  // point at — drop it rather than hand React Flow an edge referencing a
+  // nonexistent node.
+  const visibleRfEdges: GraphEdgeType[] = useMemo(() => {
+    const nodeIds = new Set(allRfNodes.map((n) => n.id));
+    return rfEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+  }, [rfEdges, allRfNodes]);
 
   const onNodeDragStart: OnNodeDrag<GraphNodeType> = useCallback(() => {
     setNodeDragging(true);
@@ -419,8 +503,8 @@ export function DiagramCanvas() {
         </defs>
       </svg>
       <ReactFlow
-        nodes={rfNodes}
-        edges={rfEdges}
+        nodes={allRfNodes}
+        edges={visibleRfEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         connectionMode={ConnectionMode.Loose}
