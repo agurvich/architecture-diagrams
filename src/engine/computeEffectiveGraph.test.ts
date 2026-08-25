@@ -219,6 +219,45 @@ describe('computeEffectiveGraph', () => {
     expect(clusterToDb.actorId).toBeUndefined();
   });
 
+  it('highlights an actor node\'s actions on hover, even though the actor is neither endpoint', () => {
+    const diagram = makeFixture();
+    diagram.edges.find((e) => e.id === 'e-a-b-internal')!.actorId = 'cache';
+
+    const { visibleNodes, visibleEdges } = computeEffectiveGraph(diagram, {
+      activeSets: allSets,
+      expandedNodes: new Set(['cluster']),
+      hoverTarget: { kind: 'node', id: 'cache' },
+    });
+
+    const aToB = visibleEdges.find((e) => e.originalEdgeIds.includes('e-a-b-internal'))!;
+    expect(aToB.highlighted).toBe(true);
+    const a = visibleNodes.find((n) => n.id === 'a')!;
+    const b = visibleNodes.find((n) => n.id === 'b')!;
+    expect(a.highlighted).toBe(true);
+    expect(b.highlighted).toBe(true);
+    // cache itself is the hovered actor, not connected via source/target,
+    // but should highlight too since it's the thing being hovered.
+    const cache = visibleNodes.find((n) => n.id === 'cache')!;
+    expect(cache.highlighted).toBe(true);
+
+    const db = visibleNodes.find((n) => n.id === 'db')!;
+    expect(db.dimmed).toBe(true); // unrelated node still dims
+  });
+
+  it('highlights an action\'s actor when hovering the action edge itself', () => {
+    const diagram = makeFixture();
+    diagram.edges.find((e) => e.id === 'e-a-b-internal')!.actorId = 'cache';
+
+    const { visibleNodes } = computeEffectiveGraph(diagram, {
+      activeSets: allSets,
+      expandedNodes: new Set(['cluster']),
+      hoverTarget: { kind: 'edge', id: 'merged:a=>b' },
+    });
+
+    const cache = visibleNodes.find((n) => n.id === 'cache')!;
+    expect(cache.highlighted).toBe(true);
+  });
+
   it('resolves frame-highlighted raw ids through to their effective node/edge', () => {
     const diagram = makeFixture();
     const { visibleNodes, visibleEdges } = computeEffectiveGraph(diagram, {

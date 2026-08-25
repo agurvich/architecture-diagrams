@@ -173,7 +173,11 @@ function applyHighlight(
   if (hover?.kind === 'node') {
     hlNodes.add(hover.id);
     for (const e of edges) {
-      if (e.visibleSourceId === hover.id || e.visibleTargetId === hover.id) {
+      // actorId matches too: an actor isn't the source/target of the
+      // actions it performs (that's the whole point — see
+      // engine/actorAnchor.ts), so hovering the actor node itself needs
+      // its own check rather than falling out of the endpoint match below.
+      if (e.visibleSourceId === hover.id || e.visibleTargetId === hover.id || e.actorId === hover.id) {
         hlEdges.add(e.id);
         hlNodes.add(e.visibleSourceId);
         hlNodes.add(e.visibleTargetId);
@@ -185,6 +189,7 @@ function applyHighlight(
       hlEdges.add(e.id);
       hlNodes.add(e.visibleSourceId);
       hlNodes.add(e.visibleTargetId);
+      if (e.actorId) hlNodes.add(e.actorId);
     }
   } else if (hasFrameHighlight) {
     const nodeIds = new Set(diagram.nodes.map((n) => n.id));
