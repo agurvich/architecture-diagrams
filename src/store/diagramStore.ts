@@ -32,6 +32,8 @@ interface DiagramStore {
   expandedNodes: Set<NodeId>;
   hoverTarget: HoverTarget | null;
   selected: SelectedElement | null;
+  /** Nodes selected via React Flow's own marquee (shift-drag) box-select. */
+  multiSelectedNodeIds: Set<NodeId>;
   currentFrameId: FrameId | null;
   importError: string | null;
   /**
@@ -53,8 +55,11 @@ interface DiagramStore {
   toggleExpand: (nodeId: NodeId) => void;
   setHover: (t: HoverTarget | null) => void;
   select: (sel: SelectedElement | null) => void;
+  setMultiSelectedNodeIds: (ids: Set<NodeId>) => void;
 
   addNode: (partial: Omit<DiagramNode, 'id'>) => NodeId;
+  /** Copies a node and its full descendant subtree (not edges) to new ids, offsetting the top-level copy so it doesn't sit exactly on top of the original. */
+  duplicateNode: (id: NodeId) => NodeId | null;
   updateNode: (id: NodeId, patch: Partial<DiagramNode>) => void;
   deleteNode: (id: NodeId) => void;
   setNodeParent: (nodeId: NodeId, parentId: NodeId | undefined) => void;
@@ -64,6 +69,8 @@ interface DiagramStore {
   addEdge: (sourceId: NodeId, targetId: NodeId, sets: EdgeSetId[], level: 'node' | 'group') => EdgeId;
   updateEdge: (id: EdgeId, patch: Partial<DiagramEdge>) => void;
   deleteEdge: (id: EdgeId) => void;
+  /** Swaps an edge's source and target. */
+  reverseEdge: (id: EdgeId) => void;
 
   addEdgeSet: (name: string, color: string) => EdgeSetId;
   updateEdgeSet: (id: EdgeSetId, patch: Partial<EdgeSet>) => void;
@@ -97,6 +104,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     expandedNodes: new Set(),
     hoverTarget: null,
     selected: null,
+    multiSelectedNodeIds: new Set(),
     currentFrameId: null,
     importError: null,
     isNodeDragging: false,
@@ -112,6 +120,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         expandedNodes: new Set(),
         hoverTarget: null,
         selected: null,
+        multiSelectedNodeIds: new Set(),
         currentFrameId: null,
         importError: null,
       });
@@ -127,6 +136,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
           expandedNodes: new Set(),
           hoverTarget: null,
           selected: null,
+          multiSelectedNodeIds: new Set(),
           currentFrameId: null,
           importError: null,
         });
@@ -155,12 +165,63 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
       }),
 
     setHover: (t) => set({ hoverTarget: t }),
-    select: (sel) => set({ selected: sel }),
+    // A specific single selection (click, context menu, duplicate, etc.)
+    // always supersedes any prior marquee multi-selection — otherwise a
+    // leftover multiSelectedNodeIds entry (e.g. from a right-click, which
+    // React Flow treats as a selection event too) silently rides along and
+    // gets swept up by Delete/Backspace alongside the node you meant to
+    // act on.
+    select: (sel) => set({ selected: sel, multiSelectedNodeIds: sel ? new Set() : get().multiSelectedNodeIds }),
+    setMultiSelectedNodeIds: (ids) => set({ multiSelectedNodeIds: ids }),
 
     addNode: (partial) => {
       const id = makeId('node');
       persistAndSet(set, (diagram) => ({ ...diagram, nodes: [...diagram.nodes, { ...partial, id }] }));
       return id;
+    },
+
+    duplicateNode: (sourceId) => {
+      const nodes = get().diagram.nodes;
+      const source = nodes.find((n) => n.id === sourceId);
+      if (!source) return null;
+
+      // Copy the whole subtree, not just this node: collect source + every
+      // descendant, mint each a new id, and remap parentId references
+      // within the copy so the nested structure is preserved. Only the
+      // top-level copy gets the "copy" label suffix and position offset —
+      // descendants keep their labels and their existing relative
+      // position under their (also-copied) parent.
+      const childrenOf = new Map<NodeId, DiagramNode[]>();
+      for (const n of nodes) {
+        if (n.parentId) {
+          const list = childrenOf.get(n.parentId) ?? [];
+          list.push(n);
+          childrenOf.set(n.parentId, list);
+        }
+      }
+      const subtree: DiagramNode[] = [];
+      const stack = [source];
+      while (stack.length) {
+        const n = stack.pop()!;
+        subtree.push(n);
+        stack.push(...(childrenOf.get(n.id) ?? []));
+      }
+
+      const idMap = new Map<NodeId, NodeId>(subtree.map((n) => [n.id, makeId('node')]));
+      const copies: DiagramNode[] = subtree.map((n) => ({
+        ...n,
+        id: idMap.get(n.id)!,
+        label: n.id === sourceId ? `${n.label} copy` : n.label,
+        parentId: n.id === sourceId ? n.parentId : idMap.get(n.parentId!),
+        // Offset large enough to clearly separate the copy from the
+        // original (a leaf node is ~170x64), so it doesn't land nearly on
+        // top of it and look like nothing happened.
+        position: n.id === sourceId ? { x: n.position.x + 60, y: n.position.y + 60 } : { ...n.position },
+        metadata: { ...n.metadata },
+      }));
+
+      persistAndSet(set, (diagram) => ({ ...diagram, nodes: [...diagram.nodes, ...copies] }));
+      return idMap.get(sourceId)!;
     },
 
     updateNode: (id, patch) =>
@@ -169,12 +230,21 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         nodes: diagram.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)),
       })),
 
-    deleteNode: (id) =>
+    deleteNode: (id) => {
       persistAndSet(set, (diagram) => ({
         ...diagram,
         nodes: diagram.nodes.filter((n) => n.id !== id).map((n) => (n.parentId === id ? { ...n, parentId: undefined } : n)),
         edges: diagram.edges.filter((e) => e.sourceId !== id && e.targetId !== id),
-      })),
+      }));
+      set((state) => {
+        const next = new Set(state.multiSelectedNodeIds);
+        next.delete(id);
+        return {
+          multiSelectedNodeIds: next,
+          selected: state.selected?.kind === 'node' && state.selected.id === id ? null : state.selected,
+        };
+      });
+    },
 
     setNodeParent: (nodeId, parentId) =>
       persistAndSet(set, (diagram) => ({
@@ -206,6 +276,12 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
 
     deleteEdge: (id) =>
       persistAndSet(set, (diagram) => ({ ...diagram, edges: diagram.edges.filter((e) => e.id !== id) })),
+
+    reverseEdge: (id) =>
+      persistAndSet(set, (diagram) => ({
+        ...diagram,
+        edges: diagram.edges.map((e) => (e.id === id ? { ...e, sourceId: e.targetId, targetId: e.sourceId } : e)),
+      })),
 
     addEdgeSet: (name, color) => {
       const id = makeId('set');
