@@ -61,6 +61,8 @@ interface DiagramStore {
   isNodeDragging: boolean;
 
   loadSeed: () => void;
+  /** Loads any example diagram (see data/examples/) the same way loadSeed loads the shipped default — a fresh clone, all view state reset. */
+  loadExample: (diagram: Diagram) => void;
   importJSON: (json: string) => void;
   /** Reloads whatever was last imported (see lastImportedDiagram) — a no-op if nothing has been imported yet. */
   resetToImported: () => void;
@@ -147,8 +149,10 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
 
     setNodeDragging: (dragging) => set({ isNodeDragging: dragging }),
 
-    loadSeed: () => {
-      const diagram = cloneSeed();
+    loadSeed: () => get().loadExample(seedDiagram),
+
+    loadExample: (example) => {
+      const diagram = cloneDiagram(example);
       saveToLocalStorageDebounced(diagram);
       set({
         diagram,

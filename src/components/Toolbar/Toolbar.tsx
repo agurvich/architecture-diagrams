@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Button } from '@/components/ui/button';
 import { useDiagramStore } from '../../store/diagramStore';
+import { EXAMPLES } from '../../data/examples';
 
 export function Toolbar() {
   const diagram = useDiagramStore((s) => s.diagram);
@@ -10,6 +11,7 @@ export function Toolbar() {
   const resetToImported = useDiagramStore((s) => s.resetToImported);
   const hasImported = useDiagramStore((s) => s.lastImportedDiagram !== null);
   const loadSeed = useDiagramStore((s) => s.loadSeed);
+  const loadExample = useDiagramStore((s) => s.loadExample);
   const importError = useDiagramStore((s) => s.importError);
   const clearImportError = useDiagramStore((s) => s.clearImportError);
   const addNode = useDiagramStore((s) => s.addNode);
@@ -77,6 +79,24 @@ export function Toolbar() {
         <Button size="sm" variant="outline" onClick={loadSeed}>
           Reset to demo
         </Button>
+        <select
+          className="h-8 rounded-md border bg-transparent px-2 text-xs shadow-xs"
+          value=""
+          title="Load one of the built-in example diagrams"
+          onChange={(e) => {
+            const example = EXAMPLES.find((ex) => ex.id === e.target.value);
+            if (example) loadExample(example.diagram);
+          }}
+        >
+          <option value="" disabled>
+            Load example…
+          </option>
+          {EXAMPLES.map((ex) => (
+            <option key={ex.id} value={ex.id} title={ex.description}>
+              {ex.name}
+            </option>
+          ))}
+        </select>
       </div>
       {importError && (
         <div
