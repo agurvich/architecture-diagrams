@@ -26,8 +26,12 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   const setHover = useDiagramStore((s) => s.setHover);
   const select = useDiagramStore((s) => s.select);
   const toggleExpand = useDiagramStore((s) => s.toggleExpand);
+  const expandedNodes = useDiagramStore((s) => s.expandedNodes);
   const updateNode = useDiagramStore((s) => s.updateNode);
+  const addNode = useDiagramStore((s) => s.addNode);
   const deleteNode = useDiagramStore((s) => s.deleteNode);
+  const duplicateNode = useDiagramStore((s) => s.duplicateNode);
+  const diagramNodes = useDiagramStore((s) => s.diagram.nodes);
   const colorPalette = useDiagramStore((s) => s.diagram.colorPalette ?? []);
   // Hover changes recompute the effective graph, replacing every node/edge
   // object. Doing that mid-drag corrupts React Flow's own pointer
@@ -68,15 +72,29 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   ));
 
   const accentStyle: React.CSSProperties | undefined = data.color ? { borderLeftColor: data.color } : undefined;
-  // A pinned icon always wins; otherwise guess live from the label and
+  // Three states: a pinned icon key always wins; a pinned `null` means no
+  // icon at all; `undefined` (the default) guesses live from the label and
   // metadata values, the way LoopIconMatcher.swift's `resolvedIcon` does —
   // computed at render time rather than stored, so renaming a node updates
   // its icon automatically unless the user has pinned one explicitly.
-  const resolvedIconKey = data.icon ?? guessIconKey(data.label, Object.values(data.metadata));
-  const NodeIcon = getIconComponent(resolvedIconKey);
+  const resolvedIconKey =
+    data.icon === null ? null : (data.icon ?? guessIconKey(data.label, Object.values(data.metadata)));
+  const NodeIcon = resolvedIconKey ? getIconComponent(resolvedIconKey) : undefined;
   const icon = NodeIcon && (
     <NodeIcon className="graph-node__icon shrink-0 text-sm" style={data.color ? { color: data.color } : undefined} />
   );
+
+  const handleAddChild = () => {
+    const existingChildren = diagramNodes.filter((n) => n.parentId === id).length;
+    const newId = addNode({
+      label: 'New node',
+      parentId: id,
+      position: { x: 20, y: 40 + existingChildren * 74 },
+      metadata: {},
+    });
+    if (!expandedNodes.has(id)) toggleExpand(id);
+    select({ kind: 'node', id: newId });
+  };
 
   const menu = (
     <ContextMenuContent className="w-48">
@@ -86,6 +104,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
           {data.renderMode === 'expanded-container' ? 'Collapse' : 'Expand'}
         </ContextMenuItem>
       )}
+      <ContextMenuItem onClick={handleAddChild}>Add child node</ContextMenuItem>
       <ContextMenuSub>
         <ContextMenuSubTrigger>Set color</ContextMenuSubTrigger>
         <ContextMenuSubContent className="w-auto">
@@ -108,6 +127,14 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
           )}
         </ContextMenuSubContent>
       </ContextMenuSub>
+      <ContextMenuItem
+        onClick={() => {
+          const newId = duplicateNode(id);
+          if (newId) select({ kind: 'node', id: newId });
+        }}
+      >
+        Duplicate
+      </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem variant="destructive" onClick={() => deleteNode(id)}>
         Delete node

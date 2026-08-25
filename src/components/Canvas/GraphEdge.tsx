@@ -28,6 +28,7 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
   const select = useDiagramStore((s) => s.select);
   const updateEdge = useDiagramStore((s) => s.updateEdge);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
+  const reverseEdge = useDiagramStore((s) => s.reverseEdge);
   // See GraphNode.tsx: hover-driven recomputation of the effective graph
   // must not happen mid-drag, or it corrupts React Flow's hit-testing for
   // the handle under the cursor and defeats live node-position tracking.
@@ -105,6 +106,7 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
                 >
                   Make {data.level === 'group' ? 'node' : 'group'}-level
                 </ContextMenuItem>
+                <ContextMenuItem onClick={() => reverseEdge(singleRawEdgeId)}>Reverse direction</ContextMenuItem>
                 <ContextMenuItem variant="destructive" onClick={() => deleteEdge(singleRawEdgeId)}>
                   Delete edge
                 </ContextMenuItem>
