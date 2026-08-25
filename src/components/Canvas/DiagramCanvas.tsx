@@ -7,6 +7,7 @@ import {
   useReactFlow,
   type Node,
   type Edge,
+  type EdgeMouseHandler,
   type NodeMouseHandler,
   type OnConnectEnd,
   type OnNodeDrag,
@@ -125,10 +126,6 @@ export function DiagramCanvas() {
 
   const sizes = useMemo(() => computeContainerSizes(effectiveGraph.visibleNodes), [effectiveGraph.visibleNodes]);
   const orderedNodes = useMemo(() => topoSort(effectiveGraph.visibleNodes), [effectiveGraph.visibleNodes]);
-  const visibleNodesById = useMemo(
-    () => new Map(effectiveGraph.visibleNodes.map((n) => [n.id, n])),
-    [effectiveGraph.visibleNodes],
-  );
 
   const rfNodes: GraphNodeType[] = useMemo(
     () =>
@@ -174,6 +171,14 @@ export function DiagramCanvas() {
           type: 'graphEdge',
           source: e.visibleSourceId,
           target: e.visibleTargetId,
+          // When set, these tell React Flow's own edge-position resolution
+          // (which GraphEdge trusts via its sourceX/sourceY/etc props in
+          // that case, instead of computing floating-edge geometry) which
+          // exact handle to anchor to. Loose connection mode means it can
+          // resolve either id against our source-typed handles regardless
+          // of which end of the edge is asking.
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
           data: e,
           selected: selected?.kind === 'edge' && selected.id === e.id,
         };
@@ -281,18 +286,37 @@ export function DiagramCanvas() {
       const sourceId = connectionState.fromNode.id;
       const targetId = connectionState.toNode.id;
       if (sourceId === targetId) return;
-      const targetEffNode = visibleNodesById.get(targetId);
-      const defaultLevel = targetEffNode && targetEffNode.renderMode !== 'leaf' ? 'group' : 'node';
       const point = 'changedTouches' in event ? event.changedTouches[0] : (event as MouseEvent);
-      setPending({ sourceId, targetId, screenX: point.clientX, screenY: point.clientY, defaultLevel });
+      setPending({
+        sourceId,
+        targetId,
+        screenX: point.clientX,
+        screenY: point.clientY,
+        // Position's string values ('top'/'right'/'bottom'/'left') already
+        // match our handle-id convention, so the exact side dragged
+        // from/to carries straight through to the new edge.
+        sourceHandle: connectionState.fromPosition as 'top' | 'right' | 'bottom' | 'left' | undefined,
+        targetHandle: connectionState.toPosition as 'top' | 'right' | 'bottom' | 'left' | undefined,
+      });
     },
-    [visibleNodesById],
+    [],
   );
 
   const onNodeClick: NodeMouseHandler<GraphNodeType> = useCallback(() => {
     // selection handled in GraphNode via stopPropagation; this keeps RF's
     // own selection state (border highlight) in sync.
   }, []);
+
+  // Clicking anywhere along an edge's path (not just the small label chip
+  // near its midpoint, which GraphEdge also handles for its own reasons —
+  // hover/context-menu — but is easy to miss on a long or label-less
+  // edge) selects it too.
+  const onEdgeClick: EdgeMouseHandler<GraphEdgeType> = useCallback(
+    (_event, edge) => {
+      select({ kind: 'edge', id: edge.id });
+    },
+    [select],
+  );
 
   const onPaneClick = useCallback(() => {
     select(null);
@@ -405,6 +429,7 @@ export function DiagramCanvas() {
         onNodeDragStop={onNodeDragStop}
         onConnectEnd={onConnectEnd}
         onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
         onPaneContextMenu={onPaneContextMenu}
         onSelectionChange={onSelectionChange}

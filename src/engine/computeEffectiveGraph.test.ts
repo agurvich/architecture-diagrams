@@ -3,9 +3,10 @@ import type { Diagram } from '../types/diagram';
 import { computeEffectiveGraph } from './computeEffectiveGraph';
 
 // A small fixture: a "cluster" group with two children (a, b) that both
-// connect to an external "db" node, plus a group-level edge from the
-// cluster itself to "cache". Mirrors the shape that matters for the
-// collapse-merge algorithm without depending on the shipped demo diagram.
+// connect to an external "db" node, plus an edge drawn directly against
+// the cluster itself (not one of its children) to "cache". Mirrors the
+// shape that matters for the collapse-merge algorithm without depending
+// on the shipped demo diagram.
 function makeFixture(): Diagram {
   return {
     edgeSets: [
@@ -20,11 +21,11 @@ function makeFixture(): Diagram {
       { id: 'cache', label: 'Cache', position: { x: 300, y: 150 }, metadata: {} },
     ],
     edges: [
-      { id: 'e-a-db-infra', sourceId: 'a', targetId: 'db', sets: ['infra'], level: 'node', metadata: {} },
-      { id: 'e-b-db-infra', sourceId: 'b', targetId: 'db', sets: ['infra'], level: 'node', metadata: {} },
-      { id: 'e-a-db-data', sourceId: 'a', targetId: 'db', sets: ['data'], level: 'node', metadata: {} },
-      { id: 'e-a-b-internal', sourceId: 'a', targetId: 'b', sets: ['infra'], level: 'node', metadata: {} },
-      { id: 'e-cluster-cache', sourceId: 'cluster', targetId: 'cache', sets: ['data'], level: 'group', metadata: {} },
+      { id: 'e-a-db-infra', sourceId: 'a', targetId: 'db', sets: ['infra'], metadata: {} },
+      { id: 'e-b-db-infra', sourceId: 'b', targetId: 'db', sets: ['infra'], metadata: {} },
+      { id: 'e-a-db-data', sourceId: 'a', targetId: 'db', sets: ['data'], metadata: {} },
+      { id: 'e-a-b-internal', sourceId: 'a', targetId: 'b', sets: ['infra'], metadata: {} },
+      { id: 'e-cluster-cache', sourceId: 'cluster', targetId: 'cache', sets: ['data'], metadata: {} },
     ],
     frames: [],
   };
@@ -101,8 +102,8 @@ describe('computeEffectiveGraph', () => {
   it('drops an edge whose target has been reparented inside the source (or vice versa)', () => {
     const diagram = makeFixture();
     // Reparent "cache" under "cluster" — the existing cluster->cache
-    // group-level edge now points from a container to something rendered
-    // inside it. Floating-edge geometry has no sensible anchor for that,
+    // edge now points from a container to something rendered inside it.
+    // Floating-edge geometry has no sensible anchor for that,
     // so it should be dropped once the container is expanded (while
     // collapsed, it is already covered by the plain vs===vt check).
     diagram.nodes.find((n) => n.id === 'cache')!.parentId = 'cluster';
@@ -135,7 +136,7 @@ describe('computeEffectiveGraph', () => {
     expect(visibleNodes.find((n) => n.id === 'a')!.color).toBeUndefined();
   });
 
-  it('resolves a group-level edge to the parent regardless of expand state', () => {
+  it('resolves an edge drawn against a container to that container regardless of expand state', () => {
     const diagram = makeFixture();
 
     const collapsed = computeEffectiveGraph(diagram, { activeSets: allSets, expandedNodes: new Set() });
@@ -146,7 +147,6 @@ describe('computeEffectiveGraph', () => {
       expect(groupEdge).toBeDefined();
       expect(groupEdge!.visibleSourceId).toBe('cluster');
       expect(groupEdge!.visibleTargetId).toBe('cache');
-      expect(groupEdge!.level).toBe('group');
     }
   });
 

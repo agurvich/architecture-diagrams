@@ -45,10 +45,11 @@ function getAncestorChain(index: AncestryIndex, nodeId: NodeId): NodeId[] {
  * topmost collapsed ancestor that subsumes nodeId. If none, nodeId is
  * visible as itself.
  *
- * This same function resolves group-level edges correctly with no
- * special-casing: a group-level edge's endpoint IS the parent node's own
- * id, so resolving it only walks that parent's strict ancestors — the
- * parent's own collapse state doesn't affect whether it itself is visible.
+ * This same function resolves an edge drawn directly against a container
+ * (rather than one of its children) correctly with no special-casing: the
+ * edge's endpoint IS the parent node's own id, so resolving it only walks
+ * that parent's strict ancestors — the parent's own collapse state
+ * doesn't affect whether it itself is visible.
  */
 export function resolveVisibleAncestor(
   index: AncestryIndex,

@@ -1,12 +1,29 @@
 import { useId, useMemo } from 'react';
-import { Badge } from '@/components/ui/badge';
+import { useReactFlow } from '@xyflow/react';
+import { Minus, Spline } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useDiagramStore } from '../../../store/diagramStore';
 import { computeEffectiveGraph } from '../../../engine/computeEffectiveGraph';
-import type { EdgeId } from '../../../types/diagram';
+import { getFloatingEdgeParams } from '../../Canvas/floatingEdgeUtils';
+import type { DiagramNode, EdgeId, NodeId } from '../../../types/diagram';
+
+/** Every strict ancestor of nodeId, nearest first — walking parentId up to the root. */
+function ancestorChain(nodes: DiagramNode[], nodeId: NodeId): NodeId[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const chain: NodeId[] = [];
+  let current = byId.get(nodeId)?.parentId;
+  const seen = new Set<NodeId>();
+  while (current && !seen.has(current)) {
+    chain.push(current);
+    seen.add(current);
+    current = byId.get(current)?.parentId;
+  }
+  return chain;
+}
 
 export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: string }) {
   const diagram = useDiagramStore((s) => s.diagram);
@@ -15,7 +32,17 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
   const updateEdge = useDiagramStore((s) => s.updateEdge);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
   const select = useDiagramStore((s) => s.select);
+  const expandNodes = useDiagramStore((s) => s.expandNodes);
+  const { getInternalNode } = useReactFlow();
   const idPrefix = useId();
+
+  // Expands every collapsed ancestor standing between a raw edge's
+  // endpoints and the canvas, then selects it directly — the actionable
+  // version of "expand nodes until this resolves to a single edge".
+  const revealRawEdge = (raw: { sourceId: NodeId; targetId: NodeId }) => {
+    expandNodes([...ancestorChain(diagram.nodes, raw.sourceId), ...ancestorChain(diagram.nodes, raw.targetId)]);
+    select({ kind: 'edge', id: `merged:${raw.sourceId}=>${raw.targetId}` });
+  };
 
   const effectiveGraph = useMemo(
     () => computeEffectiveGraph(diagram, { activeSets, expandedNodes }),
@@ -40,21 +67,23 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
         </div>
         <p className="m-0 text-xs text-muted-foreground">
           {nodeLabel(effEdge.visibleSourceId)} → {nodeLabel(effEdge.visibleTargetId)} represents {effEdge.count}{' '}
-          underlying relationships. Expand nodes until this resolves to a single edge to edit it directly.
+          underlying relationships. Click one below to expand and select it directly.
         </p>
         <ul className="flex flex-col gap-1 text-xs">
           {effEdge.originalEdgeIds.map((id) => {
             const raw = diagram.edges.find((e) => e.id === id);
             if (!raw) return null;
             return (
-              <li key={id} className="flex items-center gap-1.5">
-                {nodeLabel(raw.sourceId)} → {nodeLabel(raw.targetId)}
-                <Badge variant="outline" className="text-[10px]">
-                  {raw.level}
-                </Badge>
-                {raw.metadata.label && (
-                  <span className="truncate text-muted-foreground">“{raw.metadata.label}”</span>
-                )}
+              <li key={id}>
+                <button
+                  className="flex w-full cursor-pointer items-center gap-1.5 rounded-md border-none bg-transparent px-1 py-0.5 text-left hover:bg-accent"
+                  onClick={() => revealRawEdge(raw)}
+                >
+                  {nodeLabel(raw.sourceId)} → {nodeLabel(raw.targetId)}
+                  {raw.metadata.label && (
+                    <span className="truncate text-muted-foreground">“{raw.metadata.label}”</span>
+                  )}
+                </button>
               </li>
             );
           })}
@@ -70,6 +99,22 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
   const toggleSet = (setId: string) => {
     const has = rawEdge.sets.includes(setId);
     updateEdge(rawEdgeId, { sets: has ? rawEdge.sets.filter((s) => s !== setId) : [...rawEdge.sets, setId] });
+  };
+
+  const hasFixedAnchor = Boolean(rawEdge.sourceHandle && rawEdge.targetHandle);
+  const toggleAnchor = () => {
+    if (hasFixedAnchor) {
+      updateEdge(rawEdgeId, { sourceHandle: undefined, targetHandle: undefined });
+      return;
+    }
+    // Turning a floating edge into a fixed one with no drag gesture to
+    // anchor it to: snapshot whichever side the floating (dynamic
+    // center-to-center) geometry currently resolves to, and pin that.
+    const sourceInternal = getInternalNode(effEdge.visibleSourceId);
+    const targetInternal = getInternalNode(effEdge.visibleTargetId);
+    if (!sourceInternal || !targetInternal) return;
+    const { sourcePos, targetPos } = getFloatingEdgeParams(sourceInternal, targetInternal);
+    updateEdge(rawEdgeId, { sourceHandle: sourcePos, targetHandle: targetPos });
   };
 
   return (
@@ -100,17 +145,13 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
         })}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={`${idPrefix}-level`}>Level</Label>
-        <select
-          id={`${idPrefix}-level`}
-          className="h-9 rounded-md border bg-transparent px-2 text-sm shadow-xs"
-          value={rawEdge.level}
-          onChange={(e) => updateEdge(rawEdgeId, { level: e.target.value as 'node' | 'group' })}
-        >
-          <option value="node">Node-level</option>
-          <option value="group">Group-level</option>
-        </select>
+      <div className="flex items-center justify-between">
+        <Label htmlFor={`${idPrefix}-anchor`}>Anchor</Label>
+        <div className="flex items-center gap-2">
+          <Minus size={16} className={hasFixedAnchor ? 'text-muted-foreground' : 'text-foreground'} aria-hidden />
+          <Switch id={`${idPrefix}-anchor`} checked={hasFixedAnchor} onCheckedChange={toggleAnchor} />
+          <Spline size={16} className={hasFixedAnchor ? 'text-foreground' : 'text-muted-foreground'} aria-hidden />
+        </div>
       </div>
 
       <div className="flex flex-col gap-1">

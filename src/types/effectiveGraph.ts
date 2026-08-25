@@ -27,9 +27,17 @@ export interface EffectiveEdge {
   sets: EdgeSetId[];
   originalEdgeIds: EdgeId[];
   count: number;
-  level: 'node' | 'group' | 'mixed';
   /** Distinct, non-empty `metadata.label` values from the merged raw edges, in first-seen order. */
   labels: string[];
+  /**
+   * A remembered compass anchor, carried through only when this merged
+   * edge resolves to exactly one raw edge whose own endpoints weren't
+   * substituted by a collapsed ancestor (i.e. it's unambiguous which
+   * node the handle actually belongs to). Undefined otherwise, meaning
+   * "use floating (dynamic) edge geometry".
+   */
+  sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
+  targetHandle?: 'top' | 'right' | 'bottom' | 'left';
   dimmed: boolean;
   highlighted: boolean;
 }

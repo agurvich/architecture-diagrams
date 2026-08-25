@@ -1,6 +1,7 @@
 import {
   BaseEdge,
   EdgeLabelRenderer,
+  getBezierPath,
   getStraightPath,
   useConnection,
   useInternalNode,
@@ -20,13 +21,24 @@ import { getFloatingEdgeParams } from './floatingEdgeUtils';
 
 export type GraphEdgeType = Edge<EffectiveEdge, 'graphEdge'>;
 
-export function GraphEdge({ id, source, target, data, selected }: EdgeProps<GraphEdgeType>) {
+export function GraphEdge({
+  id,
+  source,
+  target,
+  data,
+  selected,
+  sourceX,
+  sourceY,
+  sourcePosition,
+  targetX,
+  targetY,
+  targetPosition,
+}: EdgeProps<GraphEdgeType>) {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
   const edgeSets = useDiagramStore((s) => s.diagram.edgeSets);
   const setHover = useDiagramStore((s) => s.setHover);
   const select = useDiagramStore((s) => s.select);
-  const updateEdge = useDiagramStore((s) => s.updateEdge);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
   const reverseEdge = useDiagramStore((s) => s.reverseEdge);
   // See GraphNode.tsx: hover-driven recomputation of the effective graph
@@ -38,8 +50,21 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
 
   if (!sourceNode || !targetNode || !data) return null;
 
-  const { sx, sy, tx, ty } = getFloatingEdgeParams(sourceNode, targetNode);
-  const [edgePath, labelX, labelY] = getStraightPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty });
+  // A remembered compass anchor (set when this edge was drawn by hand —
+  // see computeEffectiveGraph.ts) means React Flow has already resolved
+  // sourceX/sourceY/targetX/targetY from the actual handle DOM elements
+  // via sourceHandle/targetHandle on the edge object; trust those and
+  // draw a curve, matching the look of RF's own in-progress connection
+  // line. Otherwise fall back to floating (dynamic center-to-center
+  // intersection) geometry with a straight line — the only sensible
+  // choice for a merged edge or one with no drawn anchor to remember.
+  const hasFixedAnchor = Boolean(data.sourceHandle && data.targetHandle);
+  const { sx, sy, tx, ty } = hasFixedAnchor
+    ? { sx: sourceX, sy: sourceY, tx: targetX, ty: targetY }
+    : getFloatingEdgeParams(sourceNode, targetNode);
+  const [edgePath, labelX, labelY] = hasFixedAnchor
+    ? getBezierPath({ sourceX: sx, sourceY: sy, sourcePosition, targetX: tx, targetY: ty, targetPosition })
+    : getStraightPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty });
 
   const setColors = data.sets.map((sid) => edgeSets.find((s) => s.id === sid)?.color).filter(Boolean) as string[];
   const strokeColor = setColors.length === 1 ? setColors[0] : '#9098a8';
@@ -81,14 +106,6 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
               }}
             >
               <div className="flex gap-0.5">
-                {data.level === 'group' && (
-                  <span
-                    className="graph-edge__level-badge cursor-pointer rounded-full border border-primary bg-accent px-1.5 text-[10px] text-primary"
-                    title="Group-level edge"
-                  >
-                    G
-                  </span>
-                )}
                 {data.count > 1 && (
                   <span className="graph-edge__count-badge cursor-pointer rounded-full border bg-background px-1.5 text-[10px] text-foreground">
                     {data.count}
@@ -113,13 +130,6 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
             <ContextMenuItem onClick={() => select({ kind: 'edge', id })}>Edit properties…</ContextMenuItem>
             {singleRawEdgeId ? (
               <>
-                <ContextMenuItem
-                  onClick={() =>
-                    updateEdge(singleRawEdgeId, { level: data.level === 'group' ? 'node' : 'group' })
-                  }
-                >
-                  Make {data.level === 'group' ? 'node' : 'group'}-level
-                </ContextMenuItem>
                 <ContextMenuItem onClick={() => reverseEdge(singleRawEdgeId)}>Reverse direction</ContextMenuItem>
                 <ContextMenuItem variant="destructive" onClick={() => deleteEdge(singleRawEdgeId)}>
                   Delete edge

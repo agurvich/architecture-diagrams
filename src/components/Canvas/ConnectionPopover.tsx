@@ -14,7 +14,9 @@ export interface PendingConnection {
   targetId: string;
   screenX: number;
   screenY: number;
-  defaultLevel: 'node' | 'group';
+  /** The compass side of each node actually dragged from/to, so the confirmed edge remembers its anchor instead of falling back to floating geometry. */
+  sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
+  targetHandle?: 'top' | 'right' | 'bottom' | 'left';
 }
 
 interface Props {
@@ -26,7 +28,6 @@ export function ConnectionPopover({ pending, onDone }: Props) {
   const edgeSets = useDiagramStore((s) => s.diagram.edgeSets);
   const addEdge = useDiagramStore((s) => s.addEdge);
   const [selectedSets, setSelectedSets] = useState<Set<EdgeSetId>>(new Set());
-  const [level, setLevel] = useState<'node' | 'group'>(pending.defaultLevel);
   const idPrefix = useId();
 
   const clampedPosition = useMemo(() => {
@@ -49,7 +50,7 @@ export function ConnectionPopover({ pending, onDone }: Props) {
 
   const confirm = () => {
     if (selectedSets.size === 0) return;
-    addEdge(pending.sourceId, pending.targetId, [...selectedSets], level);
+    addEdge(pending.sourceId, pending.targetId, [...selectedSets], pending.sourceHandle, pending.targetHandle);
     onDone();
   };
 
@@ -73,16 +74,6 @@ export function ConnectionPopover({ pending, onDone }: Props) {
             </div>
           );
         })}
-      </div>
-      <div className="flex flex-col gap-1 text-xs">
-        <label className="flex items-center gap-1.5">
-          <input type="radio" name="level" checked={level === 'node'} onChange={() => setLevel('node')} />
-          Node-level
-        </label>
-        <label className="flex items-center gap-1.5">
-          <input type="radio" name="level" checked={level === 'group'} onChange={() => setLevel('group')} />
-          Group-level
-        </label>
       </div>
       <div className="flex justify-end gap-1.5">
         <Button size="sm" variant="outline" onClick={onDone}>

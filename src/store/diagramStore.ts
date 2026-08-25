@@ -53,6 +53,8 @@ interface DiagramStore {
 
   toggleEdgeSet: (id: EdgeSetId) => void;
   toggleExpand: (nodeId: NodeId) => void;
+  /** Adds nodeIds to expandedNodes without touching any already-expanded node's state (unlike toggleExpand). */
+  expandNodes: (nodeIds: NodeId[]) => void;
   setHover: (t: HoverTarget | null) => void;
   select: (sel: SelectedElement | null) => void;
   setMultiSelectedNodeIds: (ids: Set<NodeId>) => void;
@@ -66,7 +68,13 @@ interface DiagramStore {
   /** Appends a color to the accumulating palette (deduped, no-op if already present). */
   addPaletteColor: (color: string) => void;
 
-  addEdge: (sourceId: NodeId, targetId: NodeId, sets: EdgeSetId[], level: 'node' | 'group') => EdgeId;
+  addEdge: (
+    sourceId: NodeId,
+    targetId: NodeId,
+    sets: EdgeSetId[],
+    sourceHandle?: 'top' | 'right' | 'bottom' | 'left',
+    targetHandle?: 'top' | 'right' | 'bottom' | 'left',
+  ) => EdgeId;
   updateEdge: (id: EdgeId, patch: Partial<DiagramEdge>) => void;
   deleteEdge: (id: EdgeId) => void;
   /** Swaps an edge's source and target. */
@@ -161,6 +169,13 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         const next = new Set(state.expandedNodes);
         if (next.has(nodeId)) next.delete(nodeId);
         else next.add(nodeId);
+        return { expandedNodes: next };
+      }),
+
+    expandNodes: (nodeIds) =>
+      set((state) => {
+        const next = new Set(state.expandedNodes);
+        for (const id of nodeIds) next.add(id);
         return { expandedNodes: next };
       }),
 
@@ -259,11 +274,11 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         return { ...diagram, colorPalette: [...palette, color] };
       }),
 
-    addEdge: (sourceId, targetId, sets, level) => {
+    addEdge: (sourceId, targetId, sets, sourceHandle, targetHandle) => {
       const id = makeId('edge');
       persistAndSet(set, (diagram) => ({
         ...diagram,
-        edges: [...diagram.edges, { id, sourceId, targetId, sets, level, metadata: {} }],
+        edges: [...diagram.edges, { id, sourceId, targetId, sets, metadata: {}, sourceHandle, targetHandle }],
       }));
       return id;
     },
@@ -280,7 +295,11 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     reverseEdge: (id) =>
       persistAndSet(set, (diagram) => ({
         ...diagram,
-        edges: diagram.edges.map((e) => (e.id === id ? { ...e, sourceId: e.targetId, targetId: e.sourceId } : e)),
+        edges: diagram.edges.map((e) =>
+          e.id === id
+            ? { ...e, sourceId: e.targetId, targetId: e.sourceId, sourceHandle: e.targetHandle, targetHandle: e.sourceHandle }
+            : e,
+        ),
       })),
 
     addEdgeSet: (name, color) => {

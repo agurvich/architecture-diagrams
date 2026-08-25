@@ -25,8 +25,17 @@ export interface DiagramEdge {
   sourceId: NodeId;
   targetId: NodeId;
   sets: EdgeSetId[];
-  level: 'node' | 'group';
   metadata: Record<string, string>;
+  /**
+   * The compass side of each node's border this edge was dragged from/to,
+   * if it was drawn by hand. When both are set, the edge renders as a
+   * curve anchored to those exact points instead of the default floating
+   * (dynamic center-to-center intersection) straight line — undefined
+   * for edges with no remembered anchor (e.g. imported JSON), which fall
+   * back to floating geometry.
+   */
+  sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
+  targetHandle?: 'top' | 'right' | 'bottom' | 'left';
 }
 
 export interface EdgeSet {

@@ -72,9 +72,12 @@ export function computeEffectiveGraph(
   interface Accumulator {
     sets: Set<EdgeSetId>;
     originalEdgeIds: EdgeId[];
-    levels: Set<'node' | 'group'>;
     labels: string[];
     seenLabels: Set<string>;
+    sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
+    targetHandle?: 'top' | 'right' | 'bottom' | 'left';
+    /** True once a second raw edge (or one with a substituted endpoint) has joined — the remembered handle is no longer unambiguous. */
+    handleAmbiguous: boolean;
   }
   const accByKey = new Map<string, Accumulator>();
   const keyOrder: string[] = [];
@@ -97,25 +100,36 @@ export function computeEffectiveGraph(
     const key = `${vs}=>${vt}`;
     let acc = accByKey.get(key);
     if (!acc) {
-      acc = { sets: new Set(), originalEdgeIds: [], levels: new Set(), labels: [], seenLabels: new Set() };
+      acc = { sets: new Set(), originalEdgeIds: [], labels: [], seenLabels: new Set(), handleAmbiguous: false };
       accByKey.set(key, acc);
       keyOrder.push(key);
       keyToEndpoints.set(key, { vs, vt });
     }
     for (const s of setsInPlay) acc.sets.add(s);
     acc.originalEdgeIds.push(edge.id);
-    acc.levels.add(edge.level);
     const label = edge.metadata.label?.trim();
     if (label && !acc.seenLabels.has(label)) {
       acc.seenLabels.add(label);
       acc.labels.push(label);
+    }
+    // A remembered compass anchor only means something when exactly one
+    // raw edge contributes to this merged edge, and neither of its
+    // endpoints got substituted by a collapsed ancestor (the handle was
+    // recorded against the original node's own border, not whatever
+    // container ends up standing in for it).
+    if (acc.originalEdgeIds.length > 1 || edge.sourceId !== vs || edge.targetId !== vt) {
+      acc.handleAmbiguous = true;
+      acc.sourceHandle = undefined;
+      acc.targetHandle = undefined;
+    } else if (!acc.handleAmbiguous) {
+      acc.sourceHandle = edge.sourceHandle;
+      acc.targetHandle = edge.targetHandle;
     }
   }
 
   const visibleEdges: EffectiveEdge[] = keyOrder.map((key) => {
     const acc = accByKey.get(key)!;
     const { vs, vt } = keyToEndpoints.get(key)!;
-    const levels = [...acc.levels];
     return {
       id: `merged:${key}`,
       visibleSourceId: vs,
@@ -123,8 +137,9 @@ export function computeEffectiveGraph(
       sets: [...acc.sets],
       originalEdgeIds: acc.originalEdgeIds,
       count: acc.originalEdgeIds.length,
-      level: levels.length === 1 ? levels[0] : 'mixed',
       labels: acc.labels,
+      sourceHandle: acc.sourceHandle && acc.targetHandle ? acc.sourceHandle : undefined,
+      targetHandle: acc.sourceHandle && acc.targetHandle ? acc.targetHandle : undefined,
       dimmed: false,
       highlighted: false,
     };
