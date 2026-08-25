@@ -42,9 +42,31 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
     return ICON_OPTIONS.filter((opt) => opt.key.includes(q) || opt.label.toLowerCase().includes(q));
   }, [iconSearch]);
 
+  // Every metadata key/value already used anywhere in the diagram, so the
+  // "new entry" fields can offer them via a native <datalist> — picking an
+  // existing key from the list instead of retyping it is what keeps
+  // "type" from silently forking into "type"/"types" across nodes.
+  const valuesByKey = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const n of nodes) {
+      for (const [k, v] of Object.entries(n.metadata)) {
+        if (!v) continue;
+        const list = map.get(k) ?? [];
+        if (!list.includes(v)) list.push(v);
+        map.set(k, list);
+      }
+    }
+    return map;
+  }, [nodes]);
+  const allMetadataKeys = useMemo(() => [...valuesByKey.keys()].sort(), [valuesByKey]);
+
   if (!node) return null;
 
   const metadataEntries = Object.entries(node.metadata);
+  // Keys this node doesn't already have — no point suggesting a key that's
+  // already shown as its own editable row above.
+  const suggestableKeys = allMetadataKeys.filter((k) => !(k in node.metadata));
+  const suggestedNewValues = valuesByKey.get(newKey.trim()) ?? [];
   const eligibleParents = nodes.filter((n) => n.id !== node.id && !wouldCreateCycle(nodes, node.id, n.id));
 
   return (
@@ -166,43 +188,71 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
 
       <div className="flex flex-col gap-1">
         <span className="text-xs text-muted-foreground">Metadata</span>
-        {metadataEntries.map(([key, value]) => (
-          <div key={key} className="flex gap-1">
-            <Input className="min-w-0 flex-1" type="text" value={key} readOnly />
-            <Input
-              className="min-w-0 flex-1"
-              type="text"
-              value={value}
-              onChange={(e) => updateNode(node.id, { metadata: { ...node.metadata, [key]: e.target.value } })}
-            />
-            <Button
-              size="icon"
-              variant="outline"
-              onClick={() => {
-                const next = { ...node.metadata };
-                delete next[key];
-                updateNode(node.id, { metadata: next });
-              }}
-            >
-              ✕
-            </Button>
-          </div>
-        ))}
+        {metadataEntries.map(([key, value]) => {
+          const valueListId = `${idPrefix}-metadata-values-${key}`;
+          const suggestedValues = (valuesByKey.get(key) ?? []).filter((v) => v !== value);
+          return (
+            <div key={key} className="flex gap-1">
+              <Input className="min-w-0 flex-1" type="text" value={key} readOnly />
+              <Input
+                className="min-w-0 flex-1"
+                type="text"
+                list={valueListId}
+                value={value}
+                onChange={(e) => updateNode(node.id, { metadata: { ...node.metadata, [key]: e.target.value } })}
+              />
+              {suggestedValues.length > 0 && (
+                <datalist id={valueListId}>
+                  {suggestedValues.map((v) => (
+                    <option key={v} value={v} />
+                  ))}
+                </datalist>
+              )}
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => {
+                  const next = { ...node.metadata };
+                  delete next[key];
+                  updateNode(node.id, { metadata: next });
+                }}
+              >
+                ✕
+              </Button>
+            </div>
+          );
+        })}
         <div className="flex gap-1">
           <Input
             className="min-w-0 flex-1"
             type="text"
+            list={`${idPrefix}-metadata-key-options`}
             placeholder="key"
             value={newKey}
             onChange={(e) => setNewKey(e.target.value)}
           />
+          {suggestableKeys.length > 0 && (
+            <datalist id={`${idPrefix}-metadata-key-options`}>
+              {suggestableKeys.map((k) => (
+                <option key={k} value={k} />
+              ))}
+            </datalist>
+          )}
           <Input
             className="min-w-0 flex-1"
             type="text"
+            list={`${idPrefix}-metadata-new-value-options`}
             placeholder="value"
             value={newValue}
             onChange={(e) => setNewValue(e.target.value)}
           />
+          {suggestedNewValues.length > 0 && (
+            <datalist id={`${idPrefix}-metadata-new-value-options`}>
+              {suggestedNewValues.map((v) => (
+                <option key={v} value={v} />
+              ))}
+            </datalist>
+          )}
           <Button
             size="icon"
             variant="outline"
