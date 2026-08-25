@@ -73,6 +73,8 @@ export function computeEffectiveGraph(
     sets: Set<EdgeSetId>;
     originalEdgeIds: EdgeId[];
     levels: Set<'node' | 'group'>;
+    labels: string[];
+    seenLabels: Set<string>;
   }
   const accByKey = new Map<string, Accumulator>();
   const keyOrder: string[] = [];
@@ -95,7 +97,7 @@ export function computeEffectiveGraph(
     const key = `${vs}=>${vt}`;
     let acc = accByKey.get(key);
     if (!acc) {
-      acc = { sets: new Set(), originalEdgeIds: [], levels: new Set() };
+      acc = { sets: new Set(), originalEdgeIds: [], levels: new Set(), labels: [], seenLabels: new Set() };
       accByKey.set(key, acc);
       keyOrder.push(key);
       keyToEndpoints.set(key, { vs, vt });
@@ -103,6 +105,11 @@ export function computeEffectiveGraph(
     for (const s of setsInPlay) acc.sets.add(s);
     acc.originalEdgeIds.push(edge.id);
     acc.levels.add(edge.level);
+    const label = edge.metadata.label?.trim();
+    if (label && !acc.seenLabels.has(label)) {
+      acc.seenLabels.add(label);
+      acc.labels.push(label);
+    }
   }
 
   const visibleEdges: EffectiveEdge[] = keyOrder.map((key) => {
@@ -117,6 +124,7 @@ export function computeEffectiveGraph(
       originalEdgeIds: acc.originalEdgeIds,
       count: acc.originalEdgeIds.length,
       level: levels.length === 1 ? levels[0] : 'mixed',
+      labels: acc.labels,
       dimmed: false,
       highlighted: false,
     };

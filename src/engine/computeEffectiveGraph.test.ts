@@ -184,6 +184,25 @@ describe('computeEffectiveGraph', () => {
     expect(clusterToCache.dimmed).toBe(true);
   });
 
+  it('collects each merged edge\'s distinct labels, in first-seen order, without duplicates', () => {
+    const diagram = makeFixture();
+    diagram.edges.find((e) => e.id === 'e-a-db-infra')!.metadata = { label: 'ping' };
+    diagram.edges.find((e) => e.id === 'e-b-db-infra')!.metadata = { label: 'pong' };
+    // Same text as e-a-db-infra's — must not appear twice.
+    diagram.edges.find((e) => e.id === 'e-a-db-data')!.metadata = { label: 'ping' };
+
+    const { visibleEdges } = computeEffectiveGraph(diagram, { activeSets: allSets, expandedNodes: new Set() });
+    const clusterToDb = visibleEdges.find((e) => e.visibleSourceId === 'cluster' && e.visibleTargetId === 'db')!;
+    expect(clusterToDb.labels).toEqual(['ping', 'pong']);
+  });
+
+  it('leaves labels empty when no underlying raw edge sets one', () => {
+    const diagram = makeFixture();
+    const { visibleEdges } = computeEffectiveGraph(diagram, { activeSets: allSets, expandedNodes: new Set() });
+    const clusterToDb = visibleEdges.find((e) => e.visibleSourceId === 'cluster' && e.visibleTargetId === 'db')!;
+    expect(clusterToDb.labels).toEqual([]);
+  });
+
   it('resolves frame-highlighted raw ids through to their effective node/edge', () => {
     const diagram = makeFixture();
     const { visibleNodes, visibleEdges } = computeEffectiveGraph(diagram, {

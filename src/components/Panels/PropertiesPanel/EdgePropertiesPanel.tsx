@@ -52,6 +52,9 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
                 <Badge variant="outline" className="text-[10px]">
                   {raw.level}
                 </Badge>
+                {raw.metadata.label && (
+                  <span className="truncate text-muted-foreground">“{raw.metadata.label}”</span>
+                )}
               </li>
             );
           })}

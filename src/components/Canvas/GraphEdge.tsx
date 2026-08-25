@@ -69,7 +69,7 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
           <ContextMenuTrigger asChild>
             <div
               className={cn(
-                'graph-edge__label pointer-events-auto absolute flex gap-0.5 transition-opacity duration-150',
+                'graph-edge__label pointer-events-auto absolute flex flex-col items-center gap-0.5 transition-opacity duration-150',
                 data.dimmed && 'graph-edge__label--dimmed opacity-15',
               )}
               style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
@@ -80,18 +80,32 @@ export function GraphEdge({ id, source, target, data, selected }: EdgeProps<Grap
                 select({ kind: 'edge', id });
               }}
             >
-              {data.level === 'group' && (
-                <span
-                  className="graph-edge__level-badge cursor-pointer rounded-full border border-primary bg-accent px-1.5 text-[10px] text-primary"
-                  title="Group-level edge"
-                >
-                  G
-                </span>
-              )}
-              {data.count > 1 && (
-                <span className="graph-edge__count-badge cursor-pointer rounded-full border bg-background px-1.5 text-[10px] text-foreground">
-                  {data.count}
-                </span>
+              <div className="flex gap-0.5">
+                {data.level === 'group' && (
+                  <span
+                    className="graph-edge__level-badge cursor-pointer rounded-full border border-primary bg-accent px-1.5 text-[10px] text-primary"
+                    title="Group-level edge"
+                  >
+                    G
+                  </span>
+                )}
+                {data.count > 1 && (
+                  <span className="graph-edge__count-badge cursor-pointer rounded-full border bg-background px-1.5 text-[10px] text-foreground">
+                    {data.count}
+                  </span>
+                )}
+              </div>
+              {/* A single raw edge shows its own label; a merged edge shows
+                  every distinct label underneath it as a list, since there's
+                  no single string that could represent all of them. */}
+              {data.labels.length > 0 && (
+                <div className="graph-edge__label-text flex max-w-[160px] cursor-pointer flex-col items-center gap-0.5 rounded-md border bg-background px-1.5 py-0.5 text-[10px] leading-tight text-foreground shadow-sm">
+                  {data.labels.map((label) => (
+                    <span key={label} className="text-center break-words">
+                      {label}
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
           </ContextMenuTrigger>

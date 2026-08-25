@@ -28,6 +28,8 @@ export interface EffectiveEdge {
   originalEdgeIds: EdgeId[];
   count: number;
   level: 'node' | 'group' | 'mixed';
+  /** Distinct, non-empty `metadata.label` values from the merged raw edges, in first-seen order. */
+  labels: string[];
   dimmed: boolean;
   highlighted: boolean;
 }
