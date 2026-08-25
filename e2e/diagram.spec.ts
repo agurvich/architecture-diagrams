@@ -32,6 +32,37 @@ test('adding a node creates it, selects it, and supports color/icon/rename', asy
   await expect(page.locator('.graph-node', { hasText: 'Redis Cache' })).toHaveCSS('border-left-color', 'rgb(224, 71, 90)');
 });
 
+test('right-clicking empty canvas opens a menu to add a node at that position', async ({ page }) => {
+  const pane = page.locator('.react-flow__pane');
+  const box = (await pane.boundingBox())!;
+  const clickPoint = { x: box.x + box.width * 0.75, y: box.y + box.height * 0.8 };
+
+  await page.mouse.click(clickPoint.x, clickPoint.y, { button: 'right' });
+  const menu = page.getByText('Add node', { exact: true });
+  await expect(menu).toBeVisible();
+  await menu.click();
+
+  await expect(page.locator('.toolbar__stats')).toHaveText('8 nodes · 12 edges · 3 lenses');
+  const newNode = page.locator('.graph-node', { hasText: 'New node' });
+  await expect(newNode).toBeVisible();
+
+  // Created roughly where the right-click happened, not at some fixed spot.
+  const nodeBox = (await newNode.boundingBox())!;
+  const nodeCenter = { x: nodeBox.x + nodeBox.width / 2, y: nodeBox.y + nodeBox.height / 2 };
+  expect(Math.abs(nodeCenter.x - clickPoint.x)).toBeLessThan(60);
+  expect(Math.abs(nodeCenter.y - clickPoint.y)).toBeLessThan(60);
+
+  // The new node should also already be selected.
+  await expect(page.locator('.properties-panel').getByLabel('Label')).toHaveValue('New node');
+});
+
+test('right-clicking a node opens its own menu, not the empty-canvas one', async ({ page }) => {
+  await page.locator('.graph-node', { hasText: 'Client Browser' }).click({ button: 'right' });
+
+  await expect(page.getByRole('menuitem', { name: 'Edit properties…' })).toBeVisible();
+  await expect(page.getByText('Add node', { exact: true })).toHaveCount(0);
+});
+
 async function totalMergedEdgeCount(page: import('@playwright/test').Page) {
   const texts = await page.locator('.graph-edge__count-badge').allTextContents();
   return texts.reduce((sum, t) => sum + Number(t), 0);
