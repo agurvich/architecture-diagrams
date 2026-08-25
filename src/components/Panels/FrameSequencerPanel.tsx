@@ -8,6 +8,8 @@ import { useDiagramStore } from '../../store/diagramStore';
 export function FrameSequencerPanel() {
   const frames = useDiagramStore((s) => s.diagram.frames);
   const currentFrameId = useDiagramStore((s) => s.currentFrameId);
+  const editingHighlightsForFrameId = useDiagramStore((s) => s.editingHighlightsForFrameId);
+  const setEditingHighlightsForFrame = useDiagramStore((s) => s.setEditingHighlightsForFrame);
   const saveFrame = useDiagramStore((s) => s.saveFrame);
   const updateFrame = useDiagramStore((s) => s.updateFrame);
   const deleteFrame = useDiagramStore((s) => s.deleteFrame);
@@ -85,6 +87,32 @@ export function FrameSequencerPanel() {
                 value={f.notes}
                 onChange={(e) => updateFrame(f.id, { notes: e.target.value })}
               />
+              <div className="mt-1.5 flex items-center gap-1.5">
+                {editingHighlightsForFrameId === f.id ? (
+                  <Button size="sm" className="flex-1" onClick={() => setEditingHighlightsForFrame(null)}>
+                    Done editing highlights
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setEditingHighlightsForFrame(f.id)}
+                  >
+                    Edit highlights ({f.highlighted?.length ?? 0})
+                  </Button>
+                )}
+                {f.highlighted && f.highlighted.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    title="Clear highlights"
+                    onClick={() => updateFrame(f.id, { highlighted: undefined })}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
             </li>
           ))}
         </ul>

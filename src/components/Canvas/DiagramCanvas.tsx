@@ -101,6 +101,9 @@ export function DiagramCanvas() {
   const expandedNodes = useDiagramStore((s) => s.expandedNodes);
   const hoverTarget = useDiagramStore((s) => s.hoverTarget);
   const currentFrameId = useDiagramStore((s) => s.currentFrameId);
+  const editingHighlightsForFrameId = useDiagramStore((s) => s.editingHighlightsForFrameId);
+  const setEditingHighlightsForFrame = useDiagramStore((s) => s.setEditingHighlightsForFrame);
+  const toggleFrameHighlightIds = useDiagramStore((s) => s.toggleFrameHighlightIds);
   const setHover = useDiagramStore((s) => s.setHover);
   const selected = useDiagramStore((s) => s.selected);
   const select = useDiagramStore((s) => s.select);
@@ -117,6 +120,7 @@ export function DiagramCanvas() {
   const [paneMenu, setPaneMenu] = useState<{ screenX: number; screenY: number } | null>(null);
 
   const currentFrame = diagram.frames.find((f) => f.id === currentFrameId) ?? null;
+  const editingFrame = diagram.frames.find((f) => f.id === editingHighlightsForFrameId) ?? null;
 
   const effectiveGraph = useMemo(
     () =>
@@ -124,9 +128,12 @@ export function DiagramCanvas() {
         activeSets,
         expandedNodes,
         hoverTarget,
-        frameHighlighted: currentFrame?.highlighted ?? null,
+        // While authoring a frame's highlights, show THAT frame's current
+        // (live-updating as you click) membership instead of whatever
+        // frame is actually playing — same field, different source.
+        frameHighlighted: editingFrame ? (editingFrame.highlighted ?? []) : (currentFrame?.highlighted ?? null),
       }),
-    [diagram, activeSets, expandedNodes, hoverTarget, currentFrame],
+    [diagram, activeSets, expandedNodes, hoverTarget, currentFrame, editingFrame],
   );
 
   const sizes = useMemo(() => computeContainerSizes(effectiveGraph.visibleNodes), [effectiveGraph.visibleNodes]);
@@ -429,12 +436,18 @@ export function DiagramCanvas() {
   // Clicking anywhere along an edge's path (not just the small label chip
   // near its midpoint, which GraphEdge also handles for its own reasons —
   // hover/context-menu — but is easy to miss on a long or label-less
-  // edge) selects it too.
+  // edge) selects it too — or, while authoring a frame's highlights,
+  // toggles every raw edge behind this line's membership in that frame
+  // instead (see toggleFrameHighlightIds).
   const onEdgeClick: EdgeMouseHandler<GraphEdgeType> = useCallback(
     (_event, edge) => {
+      if (editingHighlightsForFrameId && edge.data) {
+        toggleFrameHighlightIds(editingHighlightsForFrameId, edge.data.originalEdgeIds);
+        return;
+      }
       select({ kind: 'edge', id: edge.id });
     },
-    [select],
+    [select, editingHighlightsForFrameId, toggleFrameHighlightIds],
   );
 
   const onPaneClick = useCallback(() => {
@@ -563,6 +576,19 @@ export function DiagramCanvas() {
         <Background />
         <Controls />
       </ReactFlow>
+      {editingFrame && (
+        <div className="pointer-events-none absolute top-2.5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md">
+          <span>
+            Editing highlights for <strong>{editingFrame.name}</strong> — click nodes/edges to toggle
+          </span>
+          <button
+            className="pointer-events-auto cursor-pointer rounded-full border-none bg-primary px-2 py-0.5 text-primary-foreground"
+            onClick={() => setEditingHighlightsForFrame(null)}
+          >
+            Done
+          </button>
+        </div>
+      )}
       {pending && <ConnectionPopover pending={pending} onDone={() => setPending(null)} />}
       {paneMenu && (
         <PaneContextMenu

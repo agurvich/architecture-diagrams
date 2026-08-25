@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { EffectiveNode } from '../../types/effectiveGraph';
 import { useDiagramStore } from '../../store/diagramStore';
+import { actionEdgeIdFromAnchor } from '../../engine/actorAnchor';
 import { getIconComponent } from '../../icons/registry';
 import { guessIconKey } from '../../icons/iconMatcher';
 
@@ -30,6 +31,8 @@ const NODE_BASE =
 export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   const setHover = useDiagramStore((s) => s.setHover);
   const select = useDiagramStore((s) => s.select);
+  const editingHighlightsForFrameId = useDiagramStore((s) => s.editingHighlightsForFrameId);
+  const toggleFrameHighlightIds = useDiagramStore((s) => s.toggleFrameHighlightIds);
   const toggleExpand = useDiagramStore((s) => s.toggleExpand);
   const expandedNodes = useDiagramStore((s) => s.expandedNodes);
   const updateNode = useDiagramStore((s) => s.updateNode);
@@ -53,6 +56,18 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   };
   const onHoverLeave = () => {
     if (!hoverFrozen) setHover(null);
+  };
+  // While authoring a frame's highlights, a click toggles this node's own
+  // (real, raw) id in that frame's list instead of selecting it — see
+  // toggleFrameHighlightIds. A collapsed group's own id is exactly what
+  // frame playback resolves against too, so no special-casing needed here
+  // for collapsed vs. expanded.
+  const onNodeBodyClick = () => {
+    if (editingHighlightsForFrameId) {
+      toggleFrameHighlightIds(editingHighlightsForFrameId, [id]);
+      return;
+    }
+    select({ kind: 'node', id });
   };
 
   const className = cn(
@@ -108,6 +123,16 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
         onMouseLeave={() => !hoverFrozen && setHover(null)}
         onClick={(e) => {
           e.stopPropagation();
+          if (editingHighlightsForFrameId) {
+            // The anchor's own id is `anchor:<rawEdgeId>` (see
+            // engine/actorAnchor.ts) — an anchor only ever exists for a
+            // single unambiguous raw action edge, so that's the one raw
+            // id to toggle, not data.linkedEdgeId (which is the
+            // *effective* edge id, used only for the normal select() case
+            // below).
+            toggleFrameHighlightIds(editingHighlightsForFrameId, [actionEdgeIdFromAnchor(id)]);
+            return;
+          }
           if (data.linkedEdgeId) select({ kind: 'edge', id: data.linkedEdgeId });
         }}
       >
@@ -193,7 +218,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
               style={accentStyle}
               onClick={(e) => {
                 e.stopPropagation();
-                select({ kind: 'node', id });
+                onNodeBodyClick();
               }}
             >
               {colorBar}
@@ -228,7 +253,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
           onMouseLeave={onHoverLeave}
           onClick={(e) => {
             e.stopPropagation();
-            select({ kind: 'node', id });
+            onNodeBodyClick();
           }}
         >
           {colorBar}

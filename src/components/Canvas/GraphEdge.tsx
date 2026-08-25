@@ -40,6 +40,8 @@ export function GraphEdge({
   const edgeSets = useDiagramStore((s) => s.diagram.edgeSets);
   const setHover = useDiagramStore((s) => s.setHover);
   const select = useDiagramStore((s) => s.select);
+  const editingHighlightsForFrameId = useDiagramStore((s) => s.editingHighlightsForFrameId);
+  const toggleFrameHighlightIds = useDiagramStore((s) => s.toggleFrameHighlightIds);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
   const reverseEdge = useDiagramStore((s) => s.reverseEdge);
   // See GraphNode.tsx: hover-driven recomputation of the effective graph
@@ -114,6 +116,10 @@ export function GraphEdge({
               onMouseLeave={() => !hoverFrozen && setHover(null)}
               onClick={(e) => {
                 e.stopPropagation();
+                if (editingHighlightsForFrameId) {
+                  toggleFrameHighlightIds(editingHighlightsForFrameId, data.originalEdgeIds);
+                  return;
+                }
                 select({ kind: 'edge', id });
               }}
             >

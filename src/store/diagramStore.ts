@@ -36,6 +36,12 @@ interface DiagramStore {
   /** Nodes selected via React Flow's own marquee (shift-drag) box-select. */
   multiSelectedNodeIds: Set<NodeId>;
   currentFrameId: FrameId | null;
+  /**
+   * When set, clicking a node/edge on the canvas toggles its membership in
+   * this frame's `highlighted` list instead of selecting it — the
+   * authoring counterpart to a frame's playback-time highlight/dim.
+   */
+  editingHighlightsForFrameId: FrameId | null;
   importError: string | null;
   /**
    * True while a node is actively being dragged. Hover updates must be
@@ -92,6 +98,14 @@ interface DiagramStore {
   gotoFrame: (id: FrameId) => void;
   nextFrame: () => void;
   prevFrame: () => void;
+  setEditingHighlightsForFrame: (id: FrameId | null) => void;
+  /**
+   * Toggles a group of raw node/edge ids in a frame's highlighted list
+   * together, as one unit — a merged edge's several constituent raw edges
+   * all get added or all get removed in the same click, rather than
+   * letting them drift out of sync with each other.
+   */
+  toggleFrameHighlightIds: (frameId: FrameId, ids: (NodeId | EdgeId)[]) => void;
 }
 
 function persistAndSet(
@@ -116,6 +130,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     selected: null,
     multiSelectedNodeIds: new Set(),
     currentFrameId: null,
+    editingHighlightsForFrameId: null,
     importError: null,
     isNodeDragging: false,
 
@@ -132,6 +147,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         selected: null,
         multiSelectedNodeIds: new Set(),
         currentFrameId: null,
+        editingHighlightsForFrameId: null,
         importError: null,
       });
     },
@@ -348,7 +364,13 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         notes,
         activeSets: [...state.activeSets],
         expandedNodes: [...state.expandedNodes],
-        highlighted: state.selected ? [state.selected.id] : undefined,
+        // Starts with nothing spotlighted — `selected.id` here would be an
+        // *effective* id (e.g. `merged:a=>b` for an edge), not one of the
+        // raw node/edge ids `highlighted` and its resolution in
+        // computeEffectiveGraph.ts actually expect, so guessing from
+        // current selection never really worked for edges. Use "Edit
+        // highlights" below to build the list correctly instead.
+        highlighted: undefined,
       };
       persistAndSet(set, (diagram) => ({ ...diagram, frames: [...diagram.frames, frame] }));
       set({ currentFrameId: id });
@@ -397,5 +419,35 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
       const prevIdx = idx === -1 ? 0 : Math.max(idx - 1, 0);
       get().gotoFrame(diagram.frames[prevIdx].id);
     },
+
+    // Also jumps to the frame's own lens/expand state (like gotoFrame) so
+    // clicks land on the same nodes/edges this frame will actually show
+    // during playback, rather than whatever was on screen before editing
+    // started.
+    setEditingHighlightsForFrame: (id) => {
+      if (id) get().gotoFrame(id);
+      set({ editingHighlightsForFrameId: id });
+    },
+
+    toggleFrameHighlightIds: (frameId, ids) =>
+      persistAndSet(set, (diagram) => ({
+        ...diagram,
+        frames: diagram.frames.map((f) => {
+          if (f.id !== frameId) return f;
+          const current = new Set(f.highlighted ?? []);
+          // All-or-nothing: if every id in this click's group (e.g. every
+          // raw edge behind one merged line) is already highlighted,
+          // remove them all; otherwise add whichever are missing — keeps
+          // a merged edge's raw edges toggling together as one unit
+          // instead of drifting out of sync with each other.
+          const allPresent = ids.every((rawId) => current.has(rawId));
+          for (const rawId of ids) {
+            if (allPresent) current.delete(rawId);
+            else current.add(rawId);
+          }
+          const next = [...current];
+          return { ...f, highlighted: next.length > 0 ? next : undefined };
+        }),
+      })),
   };
 });

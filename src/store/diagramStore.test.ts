@@ -49,3 +49,54 @@ describe('diagramStore — actor/action/trigger cascades', () => {
     expect(trigger.targetId).toBe(anchorIdFor(actionEdgeId));
   });
 });
+
+describe('diagramStore — frame highlight authoring', () => {
+  beforeEach(() => {
+    useDiagramStore.getState().loadSeed();
+  });
+
+  it('toggleFrameHighlightIds adds ids not yet present, all at once', () => {
+    const { saveFrame, toggleFrameHighlightIds } = useDiagramStore.getState();
+    const frameId = saveFrame('Test frame', '');
+    toggleFrameHighlightIds(frameId, ['a', 'b']);
+    const frame = useDiagramStore.getState().diagram.frames.find((f) => f.id === frameId)!;
+    expect(frame.highlighted?.sort()).toEqual(['a', 'b']);
+  });
+
+  it('toggleFrameHighlightIds removes the whole group when every id in it is already present (all-or-nothing)', () => {
+    const { saveFrame, toggleFrameHighlightIds } = useDiagramStore.getState();
+    const frameId = saveFrame('Test frame', '');
+    toggleFrameHighlightIds(frameId, ['a', 'b']);
+    toggleFrameHighlightIds(frameId, ['a', 'b']);
+    const frame = useDiagramStore.getState().diagram.frames.find((f) => f.id === frameId)!;
+    expect(frame.highlighted).toBeUndefined();
+  });
+
+  it('toggleFrameHighlightIds adds the missing ones when only some of the group is present', () => {
+    const { saveFrame, toggleFrameHighlightIds } = useDiagramStore.getState();
+    const frameId = saveFrame('Test frame', '');
+    toggleFrameHighlightIds(frameId, ['a']);
+    toggleFrameHighlightIds(frameId, ['a', 'b']);
+    const frame = useDiagramStore.getState().diagram.frames.find((f) => f.id === frameId)!;
+    expect(frame.highlighted?.sort()).toEqual(['a', 'b']);
+  });
+
+  it('setEditingHighlightsForFrame(id) also jumps to that frame\'s own lens/expand state', () => {
+    const { saveFrame, toggleEdgeSet, setEditingHighlightsForFrame } = useDiagramStore.getState();
+    // Capture a frame with only the first lens active, then flip lenses
+    // around before entering edit mode — editing should restore the
+    // frame's own state, not leave whatever was on screen before.
+    const firstSet = useDiagramStore.getState().diagram.edgeSets[0].id;
+    const frameId = saveFrame('Test frame', '');
+    useDiagramStore.getState().updateFrame(frameId, { activeSets: [firstSet] });
+    toggleEdgeSet(firstSet); // now inactive
+    expect(useDiagramStore.getState().activeSets.has(firstSet)).toBe(false);
+
+    setEditingHighlightsForFrame(frameId);
+    expect(useDiagramStore.getState().activeSets.has(firstSet)).toBe(true);
+    expect(useDiagramStore.getState().editingHighlightsForFrameId).toBe(frameId);
+
+    setEditingHighlightsForFrame(null);
+    expect(useDiagramStore.getState().editingHighlightsForFrameId).toBeNull();
+  });
+});
