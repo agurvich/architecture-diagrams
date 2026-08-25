@@ -1,84 +1,163 @@
 import type { Diagram } from '../types/diagram';
 import { DEFAULT_COLOR_PALETTE } from '../lib/colorPalette';
 
-// A small "web app" system demoed through three lenses:
-// - Infrastructure: physical/network connectivity
-// - Process: request/response sequence
-// - Data: what reads/writes what
+// This app's own architecture and runtime data flow, shown through the app
+// itself — three lenses:
+// - Structure: static composition (what renders/calls what)
+// - Data Flow: the runtime path a user action takes, numbered step by step
+// - Persistence: how the working diagram survives (localStorage + JSON)
 //
-// The "API Cluster" group has two children (api-1, api-2) that both talk to
-// the same database — collapsing the group should merge those into one edge
-// rather than drawing two parallel lines. The group also carries a
-// group-level "Data" edge to the cache, representing a subsystem-level
-// relationship that isn't owned by either child specifically.
+// "Canvas" and "Panels" are containers with two children each that both
+// talk to the Store — collapsing either should merge those into one edge,
+// same merge-on-collapse case as the original infra demo. "Engine" also
+// carries a group-level edge into "Canvas" itself (not into one specific
+// child renderer), mirroring the original's cluster-to-cache edge.
 export const seedDiagram: Diagram = {
   colorPalette: DEFAULT_COLOR_PALETTE,
   edgeSets: [
-    { id: 'infra', name: 'Infrastructure', color: '#4f8ff7' },
-    { id: 'process', name: 'Process', color: '#f7924f' },
-    { id: 'data', name: 'Data', color: '#38b06a' },
+    { id: 'structure', name: 'Structure', color: '#4f8ff7' },
+    { id: 'dataflow', name: 'Data Flow', color: '#f7924f' },
+    { id: 'persistence', name: 'Persistence', color: '#38b06a' },
   ],
   nodes: [
-    { id: 'client', label: 'Client Browser', position: { x: 0, y: 200 }, metadata: { type: 'actor' } },
-    { id: 'lb', label: 'Load Balancer', position: { x: 260, y: 200 }, metadata: { type: 'infra' } },
-    { id: 'api-cluster', label: 'API Cluster', position: { x: 540, y: 140 }, metadata: { type: 'subsystem' } },
-    { id: 'api-1', label: 'API Server 1', parentId: 'api-cluster', position: { x: 40, y: 40 }, metadata: { type: 'service' } },
-    { id: 'api-2', label: 'API Server 2', parentId: 'api-cluster', position: { x: 40, y: 160 }, metadata: { type: 'service' } },
-    { id: 'db', label: 'Primary Database', position: { x: 900, y: 100 }, metadata: { type: 'datastore' } },
-    { id: 'cache', label: 'Cache', position: { x: 900, y: 280 }, metadata: { type: 'datastore' } },
+    { id: 'user', label: 'User', position: { x: 0, y: 200 }, metadata: { type: 'actor' } },
+    { id: 'toolbar', label: 'Toolbar', position: { x: 300, y: 20 }, metadata: { type: 'ui' } },
+    {
+      id: 'canvas',
+      label: 'Canvas',
+      position: { x: 300, y: 160 },
+      metadata: { type: 'subsystem', file: 'DiagramCanvas.tsx' },
+      color: '#c05fd6',
+    },
+    {
+      id: 'node-renderer',
+      label: 'Node Renderer',
+      parentId: 'canvas',
+      position: { x: 40, y: 40 },
+      metadata: { type: 'component', file: 'GraphNode.tsx' },
+    },
+    {
+      id: 'edge-renderer',
+      label: 'Edge Renderer',
+      parentId: 'canvas',
+      position: { x: 40, y: 160 },
+      metadata: { type: 'component', file: 'GraphEdge.tsx' },
+    },
+    {
+      id: 'panels',
+      label: 'Panels',
+      position: { x: 300, y: 400 },
+      metadata: { type: 'subsystem' },
+      color: '#2fb6c4',
+    },
+    {
+      id: 'hierarchy-panel',
+      label: 'Hierarchy Panel',
+      parentId: 'panels',
+      position: { x: 40, y: 40 },
+      metadata: { type: 'component', file: 'HierarchyPanel.tsx' },
+    },
+    {
+      id: 'properties-panel',
+      label: 'Properties Panel',
+      parentId: 'panels',
+      position: { x: 40, y: 160 },
+      metadata: { type: 'component', file: 'NodePropertiesPanel.tsx' },
+    },
+    {
+      id: 'store',
+      label: 'Diagram Store',
+      position: { x: 660, y: 220 },
+      metadata: { type: 'state', file: 'diagramStore.ts' },
+      color: '#f7b500',
+      icon: 'database',
+    },
+    {
+      id: 'engine',
+      label: 'Effective Graph Engine',
+      position: { x: 980, y: 220 },
+      metadata: { type: 'derivation', file: 'computeEffectiveGraph.ts' },
+      color: '#e0475a',
+      icon: 'gear',
+    },
+    {
+      id: 'local-storage',
+      label: 'Local Storage',
+      position: { x: 660, y: 440 },
+      metadata: { type: 'storage' },
+      color: '#98a2b3',
+    },
+    {
+      id: 'json-file',
+      label: 'JSON File',
+      position: { x: 980, y: 440 },
+      metadata: { type: 'file' },
+      color: '#98a2b3',
+    },
   ],
   edges: [
-    { id: 'e-client-lb-infra', sourceId: 'client', targetId: 'lb', sets: ['infra'], level: 'node', metadata: {} },
-    { id: 'e-client-lb-process', sourceId: 'client', targetId: 'lb', sets: ['process'], level: 'node', metadata: { label: '1. request' } },
+    // --- Structure: static composition, always true regardless of what the user does ---
+    { id: 's-user-toolbar', sourceId: 'user', targetId: 'toolbar', sets: ['structure'], level: 'node', metadata: {} },
+    { id: 's-user-canvas', sourceId: 'user', targetId: 'canvas', sets: ['structure'], level: 'node', metadata: {} },
+    { id: 's-user-panels', sourceId: 'user', targetId: 'panels', sets: ['structure'], level: 'node', metadata: {} },
+    { id: 's-toolbar-store', sourceId: 'toolbar', targetId: 'store', sets: ['structure'], level: 'node', metadata: {} },
+    { id: 's-noderenderer-store', sourceId: 'node-renderer', targetId: 'store', sets: ['structure'], level: 'node', metadata: {} },
+    { id: 's-edgerenderer-store', sourceId: 'edge-renderer', targetId: 'store', sets: ['structure'], level: 'node', metadata: {} },
+    { id: 's-hierarchypanel-store', sourceId: 'hierarchy-panel', targetId: 'store', sets: ['structure'], level: 'node', metadata: {} },
+    { id: 's-propertiespanel-store', sourceId: 'properties-panel', targetId: 'store', sets: ['structure'], level: 'node', metadata: {} },
+    { id: 's-store-engine', sourceId: 'store', targetId: 'engine', sets: ['structure'], level: 'node', metadata: {} },
+    // group-level: the engine's output feeds the canvas as a whole, not any one renderer
+    { id: 's-engine-canvas', sourceId: 'engine', targetId: 'canvas', sets: ['structure'], level: 'group', metadata: {} },
+    { id: 's-store-localstorage', sourceId: 'store', targetId: 'local-storage', sets: ['structure'], level: 'node', metadata: {} },
+    { id: 's-store-jsonfile', sourceId: 'store', targetId: 'json-file', sets: ['structure'], level: 'node', metadata: {} },
 
-    { id: 'e-lb-api1-infra', sourceId: 'lb', targetId: 'api-1', sets: ['infra'], level: 'node', metadata: {} },
-    { id: 'e-lb-api2-infra', sourceId: 'lb', targetId: 'api-2', sets: ['infra'], level: 'node', metadata: {} },
-    { id: 'e-lb-api1-process', sourceId: 'lb', targetId: 'api-1', sets: ['process'], level: 'node', metadata: { label: '2. route' } },
+    // --- Data Flow: the same edges, walked as three numbered request paths ---
+    { id: 'd-user-toolbar', sourceId: 'user', targetId: 'toolbar', sets: ['dataflow'], level: 'node', metadata: { label: '1. click "+ Add node"' } },
+    { id: 'd-toolbar-store', sourceId: 'toolbar', targetId: 'store', sets: ['dataflow'], level: 'node', metadata: { label: '2. addNode()' } },
+    { id: 'd-user-canvas', sourceId: 'user', targetId: 'canvas', sets: ['dataflow'], level: 'node', metadata: { label: '1. drag / right-click' } },
+    { id: 'd-noderenderer-store', sourceId: 'node-renderer', targetId: 'store', sets: ['dataflow'], level: 'node', metadata: { label: '2. updateNode() / select()' } },
+    { id: 'd-edgerenderer-store', sourceId: 'edge-renderer', targetId: 'store', sets: ['dataflow'], level: 'node', metadata: { label: '2. addEdge() / reverseEdge()' } },
+    { id: 'd-user-panels', sourceId: 'user', targetId: 'panels', sets: ['dataflow'], level: 'node', metadata: { label: '1. toggle lens / edit field' } },
+    { id: 'd-hierarchypanel-store', sourceId: 'hierarchy-panel', targetId: 'store', sets: ['dataflow'], level: 'node', metadata: { label: '2. toggleExpand()' } },
+    { id: 'd-propertiespanel-store', sourceId: 'properties-panel', targetId: 'store', sets: ['dataflow'], level: 'node', metadata: { label: '2. updateNode()' } },
+    { id: 'd-store-engine', sourceId: 'store', targetId: 'engine', sets: ['dataflow'], level: 'node', metadata: { label: '3. computeEffectiveGraph()' } },
+    { id: 'd-engine-canvas', sourceId: 'engine', targetId: 'canvas', sets: ['dataflow'], level: 'group', metadata: { label: '4. re-render' } },
 
-    // both API servers talk to the DB on the infra + data lenses — this is
-    // the merge-on-collapse case: collapsing api-cluster should yield ONE
-    // edge to db per active lens, not two.
-    { id: 'e-api1-db-infra', sourceId: 'api-1', targetId: 'db', sets: ['infra'], level: 'node', metadata: {} },
-    { id: 'e-api2-db-infra', sourceId: 'api-2', targetId: 'db', sets: ['infra'], level: 'node', metadata: {} },
-    { id: 'e-api1-db-data', sourceId: 'api-1', targetId: 'db', sets: ['data'], level: 'node', metadata: { label: 'reads/writes' } },
-    { id: 'e-api2-db-data', sourceId: 'api-2', targetId: 'db', sets: ['data'], level: 'node', metadata: { label: 'reads/writes' } },
-    { id: 'e-api1-db-process', sourceId: 'api-1', targetId: 'db', sets: ['process'], level: 'node', metadata: { label: '3. query' } },
-
-    // group-level edge: the cluster as a whole talks to the cache, not
-    // attributable to one specific api server.
-    { id: 'e-cluster-cache-data', sourceId: 'api-cluster', targetId: 'cache', sets: ['data'], level: 'group', metadata: { label: 'cache reads' } },
-    { id: 'e-cluster-cache-infra', sourceId: 'api-cluster', targetId: 'cache', sets: ['infra'], level: 'group', metadata: {} },
+    // --- Persistence: how the working diagram survives a reload ---
+    { id: 'p-store-localstorage', sourceId: 'store', targetId: 'local-storage', sets: ['persistence'], level: 'node', metadata: { label: 'debounced auto-save, loaded on startup' } },
+    { id: 'p-store-jsonfile', sourceId: 'store', targetId: 'json-file', sets: ['persistence'], level: 'node', metadata: { label: 'Export JSON / Import JSON' } },
   ],
   frames: [
     {
       id: 'frame-1',
-      name: '1. Physical topology',
-      activeSets: ['infra'],
+      name: '1. Component architecture',
+      activeSets: ['structure'],
       expandedNodes: [],
-      notes: 'Every hop is a network connection. The API Cluster is collapsed — its two servers both reach the database and cache, but that detail is not important at this level.',
+      notes: 'The static shape of the app: Canvas and Panels are collapsed subsystems here — what matters at this level is that the User drives three UI areas, all of which read and write one shared Store.',
     },
     {
       id: 'frame-2',
-      name: '2. Inside the cluster',
-      activeSets: ['infra'],
-      expandedNodes: ['api-cluster'],
-      highlighted: ['api-1', 'api-2'],
-      notes: 'Expanding the cluster reveals two API servers behind the load balancer, each independently connected to the database.',
+      name: '2. Inside the UI layer',
+      activeSets: ['structure'],
+      expandedNodes: ['canvas', 'panels'],
+      highlighted: ['node-renderer', 'edge-renderer', 'hierarchy-panel', 'properties-panel'],
+      notes: 'Expanding Canvas and Panels reveals the individual renderer/panel components underneath — each one calls the Store independently, which is exactly the merge-on-collapse case: collapse either group back up and its children\'s edges to the Store fold into one line.',
     },
     {
       id: 'frame-3',
-      name: '3. Request sequence',
-      activeSets: ['process'],
+      name: '3. A user action, step by step',
+      activeSets: ['dataflow'],
       expandedNodes: [],
-      notes: 'Switching lenses (without touching expand state) shows the same nodes as a request/response sequence: client to load balancer to one API server to the database.',
+      highlighted: ['store', 'engine'],
+      notes: 'Switching lenses (without touching expand state) reframes the same nodes as three parallel request paths — toolbar, canvas, and panels — that all converge on the Store, get derived by the Effective Graph Engine, and flow back out as a re-render. One-way data flow, no matter which UI area triggered it.',
     },
     {
       id: 'frame-4',
-      name: '4. Data movement',
-      activeSets: ['data'],
+      name: '4. Keeping it saved',
+      activeSets: ['persistence'],
       expandedNodes: [],
-      highlighted: ['db', 'cache'],
-      notes: 'The data lens shows what reads and writes what. The cluster-to-cache edge is a group-level relationship — it belongs to the cluster as a whole, not to either individual server.',
+      highlighted: ['local-storage', 'json-file'],
+      notes: 'The persistence lens shows what survives a reload: every Store mutation debounce-saves to Local Storage automatically, while Export/Import JSON is the explicit, user-triggered escape hatch to a file.',
     },
   ],
 };

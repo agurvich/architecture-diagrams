@@ -5,17 +5,17 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('loads the seeded demo diagram', async ({ page }) => {
-  await expect(page.locator('.toolbar__stats')).toHaveText('7 nodes · 12 edges · 3 lenses');
-  await expect(page.locator('.graph-node', { hasText: 'Client Browser' })).toBeVisible();
-  await expect(page.locator('.graph-node', { hasText: 'API Cluster' })).toBeVisible();
-  // API Cluster starts collapsed, carrying its two children
-  await expect(page.locator('.graph-node', { hasText: 'API Cluster' })).toContainText('2 nodes');
+  await expect(page.locator('.toolbar__stats')).toHaveText('12 nodes · 24 edges · 3 lenses');
+  await expect(page.locator('.graph-node', { hasText: 'User' })).toBeVisible();
+  await expect(page.locator('.graph-node', { hasText: 'Canvas' })).toBeVisible();
+  // Canvas starts collapsed, carrying its two children
+  await expect(page.locator('.graph-node', { hasText: 'Canvas' })).toContainText('2 nodes');
 });
 
 test('adding a node creates it, selects it, and supports color/icon/rename', async ({ page }) => {
   await page.getByRole('button', { name: '+ Add node' }).click();
 
-  await expect(page.locator('.toolbar__stats')).toHaveText('8 nodes · 12 edges · 3 lenses');
+  await expect(page.locator('.toolbar__stats')).toHaveText('13 nodes · 24 edges · 3 lenses');
   const newNode = page.locator('.graph-node', { hasText: 'New node' });
   await expect(newNode).toBeVisible();
 
@@ -42,7 +42,7 @@ test('right-clicking empty canvas opens a menu to add a node at that position', 
   await expect(menu).toBeVisible();
   await menu.click();
 
-  await expect(page.locator('.toolbar__stats')).toHaveText('8 nodes · 12 edges · 3 lenses');
+  await expect(page.locator('.toolbar__stats')).toHaveText('13 nodes · 24 edges · 3 lenses');
   const newNode = page.locator('.graph-node', { hasText: 'New node' });
   await expect(newNode).toBeVisible();
 
@@ -57,7 +57,7 @@ test('right-clicking empty canvas opens a menu to add a node at that position', 
 });
 
 test('right-clicking a node opens its own menu, not the empty-canvas one', async ({ page }) => {
-  await page.locator('.graph-node', { hasText: 'Client Browser' }).click({ button: 'right' });
+  await page.locator('.graph-node', { hasText: 'User' }).click({ button: 'right' });
 
   await expect(page.getByRole('menuitem', { name: 'Edit properties…' })).toBeVisible();
   await expect(page.getByText('Add node', { exact: true })).toHaveCount(0);
@@ -69,50 +69,51 @@ async function totalMergedEdgeCount(page: import('@playwright/test').Page) {
 }
 
 test('toggling a lens off reduces merged edge counts without touching raw node/edge totals', async ({ page }) => {
-  // At this demo's topology every node pair also carries an Infrastructure
-  // edge, so no line disappears entirely from just turning Process off —
-  // instead each merged edge's underlying count should drop.
+  // At this diagram's topology every node pair with a Data Flow edge also
+  // carries a Structure edge between the same two nodes, so no line
+  // disappears entirely from just turning Data Flow off — instead each
+  // merged edge's underlying count should drop.
   const mergedCountBefore = await totalMergedEdgeCount(page);
 
-  await page.getByRole('checkbox', { name: 'Process' }).uncheck();
+  await page.getByRole('checkbox', { name: 'Data Flow' }).uncheck();
 
-  await expect(page.locator('.toolbar__stats')).toHaveText('7 nodes · 12 edges · 3 lenses'); // raw counts unchanged
+  await expect(page.locator('.toolbar__stats')).toHaveText('12 nodes · 24 edges · 3 lenses'); // raw counts unchanged
   await expect.poll(() => totalMergedEdgeCount(page)).toBeLessThan(mergedCountBefore);
 
-  await page.getByRole('checkbox', { name: 'Process' }).check();
+  await page.getByRole('checkbox', { name: 'Data Flow' }).check();
   await expect.poll(() => totalMergedEdgeCount(page)).toBe(mergedCountBefore);
 });
 
 test('turning off every lens leaves nodes visible with zero edges', async ({ page }) => {
-  await page.getByRole('checkbox', { name: 'Infrastructure' }).uncheck();
-  await page.getByRole('checkbox', { name: 'Process' }).uncheck();
-  await page.getByRole('checkbox', { name: 'Data' }).uncheck();
+  await page.getByRole('checkbox', { name: 'Structure' }).uncheck();
+  await page.getByRole('checkbox', { name: 'Data Flow' }).uncheck();
+  await page.getByRole('checkbox', { name: 'Persistence' }).uncheck();
 
   await expect(page.locator('.react-flow__edge')).toHaveCount(0);
-  await expect(page.locator('.graph-node', { hasText: 'Client Browser' })).toBeVisible();
+  await expect(page.locator('.graph-node', { hasText: 'User' })).toBeVisible();
 });
 
 test('expanding a collapsed group reveals its children and merged edges split back out', async ({ page }) => {
-  const cluster = page.locator('.graph-node--collapsed-group', { hasText: 'API Cluster' });
-  await expect(cluster).toBeVisible();
+  const canvasGroup = page.locator('.graph-node--collapsed-group', { hasText: 'Canvas' });
+  await expect(canvasGroup).toBeVisible();
 
-  await cluster.locator('.graph-node__chevron').click();
+  await canvasGroup.locator('.graph-node__chevron').click();
 
-  await expect(page.locator('.graph-node', { hasText: 'API Server 1' })).toBeVisible();
-  await expect(page.locator('.graph-node', { hasText: 'API Server 2' })).toBeVisible();
-  await expect(page.locator('.graph-node--collapsed-group', { hasText: 'API Cluster' })).toHaveCount(0);
+  await expect(page.locator('.graph-node', { hasText: 'Node Renderer' })).toBeVisible();
+  await expect(page.locator('.graph-node', { hasText: 'Edge Renderer' })).toBeVisible();
+  await expect(page.locator('.graph-node--collapsed-group', { hasText: 'Canvas' })).toHaveCount(0);
 });
 
 test('hovering a node highlights its neighbors and dims everything else', async ({ page }) => {
-  const clientNode = page.locator('.graph-node', { hasText: 'Client Browser' });
-  const loadBalancerNode = page.locator('.graph-node', { hasText: 'Load Balancer' });
-  const dbNode = page.locator('.graph-node', { hasText: 'Primary Database' });
+  const userNode = page.locator('.graph-node', { hasText: 'User' });
+  const toolbarNode = page.locator('.graph-node', { hasText: 'Toolbar' });
+  const storeNode = page.locator('.graph-node', { hasText: 'Diagram Store' });
 
-  await clientNode.hover();
+  await userNode.hover();
 
-  await expect(clientNode).toHaveClass(/graph-node--highlighted/);
-  await expect(loadBalancerNode).toHaveClass(/graph-node--highlighted/);
-  await expect(dbNode).toHaveClass(/graph-node--dimmed/);
+  await expect(userNode).toHaveClass(/graph-node--highlighted/);
+  await expect(toolbarNode).toHaveClass(/graph-node--highlighted/);
+  await expect(storeNode).toHaveClass(/graph-node--dimmed/);
 });
 
 test('frame player steps forward and back through the narrated sequence', async ({ page }) => {
@@ -124,20 +125,20 @@ test('frame player steps forward and back through the narrated sequence', async 
   await expect(prev).toBeDisabled();
 
   await next.click();
-  await expect(title).toContainText('1. Physical topology');
+  await expect(title).toContainText('1. Component architecture');
   await expect(title).toContainText('1 / 4');
 
   await next.click();
-  await expect(title).toContainText('2. Inside the cluster');
-  // frame 2 expands the cluster and highlights its two servers
-  await expect(page.locator('.graph-node', { hasText: 'API Server 1' })).toBeVisible();
+  await expect(title).toContainText('2. Inside the UI layer');
+  // frame 2 expands Canvas (and Panels) and highlights their children
+  await expect(page.locator('.graph-node', { hasText: 'Node Renderer' })).toBeVisible();
 
   await prev.click();
-  await expect(title).toContainText('1. Physical topology');
+  await expect(title).toContainText('1. Component architecture');
 });
 
 test('dragging a node tracks the cursor live instead of jumping only on release', async ({ page }) => {
-  const node = page.locator('[data-id="client"]');
+  const node = page.locator('[data-id="user"]');
   const startBox = (await node.boundingBox())!;
   const startCenter = { x: startBox.x + startBox.width / 2, y: startBox.y + startBox.height / 2 };
   const dx = 0;
@@ -171,14 +172,14 @@ test('dragging a node tracks the cursor live instead of jumping only on release'
     .poll(async () => {
       const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
       const diagram = raw ? JSON.parse(raw) : null;
-      return diagram?.nodes.find((n: { id: string }) => n.id === 'client')?.position.y;
+      return diagram?.nodes.find((n: { id: string }) => n.id === 'user')?.position.y;
     })
     .toBeGreaterThan(dy - 20);
 });
 
 test('dragging from a handle to another node opens the tagging popover and creates an edge', async ({ page }) => {
-  const source = page.locator('[data-id="client"] .react-flow__handle-right');
-  const target = page.locator('[data-id="db"] .react-flow__handle-left');
+  const source = page.locator('[data-id="user"] .react-flow__handle-right');
+  const target = page.locator('[data-id="engine"] .react-flow__handle-left');
 
   const edgeCountBefore = await page.locator('.react-flow__edge').count();
 
@@ -203,10 +204,10 @@ test('dragging from a handle to another node opens the tagging popover and creat
   const popover = page.locator('.connection-popover');
   await expect(popover).toBeVisible();
 
-  await popover.getByRole('checkbox', { name: 'Data' }).check();
+  await popover.getByRole('checkbox', { name: 'Persistence' }).check();
   await popover.getByRole('button', { name: 'Add edge' }).click();
 
   await expect(popover).toHaveCount(0);
   await expect(page.locator('.react-flow__edge')).toHaveCount(edgeCountBefore + 1);
-  await expect(page.locator('.toolbar__stats')).toHaveText('7 nodes · 13 edges · 3 lenses');
+  await expect(page.locator('.toolbar__stats')).toHaveText('12 nodes · 25 edges · 3 lenses');
 });

@@ -21,15 +21,15 @@ describe('EdgeSetTogglePanel', () => {
     const user = userEvent.setup();
     render(<EdgeSetTogglePanel />);
 
-    const infraCheckbox = screen.getByRole('checkbox', { name: /Infrastructure/i });
-    expect(useDiagramStore.getState().activeSets.has('infra')).toBe(true);
+    const structureCheckbox = screen.getByRole('checkbox', { name: /Structure/i });
+    expect(useDiagramStore.getState().activeSets.has('structure')).toBe(true);
 
-    await user.click(infraCheckbox);
-    expect(useDiagramStore.getState().activeSets.has('infra')).toBe(false);
-    expect(infraCheckbox).not.toBeChecked();
+    await user.click(structureCheckbox);
+    expect(useDiagramStore.getState().activeSets.has('structure')).toBe(false);
+    expect(structureCheckbox).not.toBeChecked();
 
-    await user.click(infraCheckbox);
-    expect(useDiagramStore.getState().activeSets.has('infra')).toBe(true);
+    await user.click(structureCheckbox);
+    expect(useDiagramStore.getState().activeSets.has('structure')).toBe(true);
   });
 
   it('adding a new edge set appends it and activates it', async () => {
