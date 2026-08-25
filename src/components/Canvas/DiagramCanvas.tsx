@@ -11,6 +11,7 @@ import {
   type NodeMouseHandler,
   type OnConnectEnd,
   type OnNodeDrag,
+  type OnReconnect,
   type OnSelectionChangeFunc,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -108,6 +109,7 @@ export function DiagramCanvas() {
   const updateNode = useDiagramStore((s) => s.updateNode);
   const addNode = useDiagramStore((s) => s.addNode);
   const deleteNode = useDiagramStore((s) => s.deleteNode);
+  const updateEdge = useDiagramStore((s) => s.updateEdge);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
   const setNodeDragging = useDiagramStore((s) => s.setNodeDragging);
 
@@ -198,6 +200,12 @@ export function DiagramCanvas() {
           targetHandle: e.targetHandle,
           data: e,
           selected: selected?.kind === 'edge' && selected.id === e.id,
+          // Draggable-to-reassign whenever it resolves to exactly one raw
+          // edge — a collapsed ancestor standing in for the real endpoint
+          // is a real node with its own handles, so there's always
+          // exactly one raw record (originalEdgeIds[0]) to write the new
+          // endpoint back to, substituted or not.
+          reconnectable: e.count === 1,
         };
         return edge;
       }),
@@ -386,6 +394,33 @@ export function DiagramCanvas() {
     [],
   );
 
+  // Dragging an existing (reconnectable, see rfEdges above) edge's own
+  // endpoint onto a different node/anchor reassigns it in place instead
+  // of forcing a delete-and-recreate — how a misattributed trigger gets
+  // pointed at the right action's anchor, or any edge gets re-aimed. The
+  // no-op guard matters specifically for a substituted endpoint (edge
+  // rendered against a collapsed ancestor): dropping back without
+  // actually moving it would otherwise fire with the SAME
+  // source/target the edge already rendered with (the collapsed
+  // ancestor's id) and silently overwrite the raw edge's real child
+  // endpoint with that ancestor's id — only write when something
+  // actually changed.
+  const onReconnect: OnReconnect<GraphEdgeType> = useCallback(
+    (oldEdge, newConnection) => {
+      if (!oldEdge.data || oldEdge.data.count !== 1) return;
+      if (!newConnection.source || !newConnection.target) return;
+      if (newConnection.source === oldEdge.source && newConnection.target === oldEdge.target) return;
+      const rawEdgeId = oldEdge.data.originalEdgeIds[0];
+      updateEdge(rawEdgeId, {
+        sourceId: newConnection.source,
+        targetId: newConnection.target,
+        sourceHandle: (newConnection.sourceHandle ?? undefined) as 'top' | 'right' | 'bottom' | 'left' | undefined,
+        targetHandle: (newConnection.targetHandle ?? undefined) as 'top' | 'right' | 'bottom' | 'left' | undefined,
+      });
+    },
+    [updateEdge],
+  );
+
   const onNodeClick: NodeMouseHandler<GraphNodeType> = useCallback(() => {
     // selection handled in GraphNode via stopPropagation; this keeps RF's
     // own selection state (border highlight) in sync.
@@ -512,6 +547,7 @@ export function DiagramCanvas() {
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onConnectEnd={onConnectEnd}
+        onReconnect={onReconnect}
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
