@@ -11,8 +11,13 @@ export interface DiagramNode {
   metadata: Record<string, string>;
   /** Accent color for the node (CSS color string), author-chosen. */
   color?: string;
-  /** Key into the icon registry (src/icons/registry.ts), e.g. "server". */
-  icon?: string;
+  /**
+   * Icon override. Three states: `undefined` (field absent) — Auto, guess
+   * live from label/metadata via src/icons/iconMatcher.ts; `null` — pinned
+   * to no icon at all; a string — pinned to that key in
+   * src/icons/registry.ts.
+   */
+  icon?: string | null;
 }
 
 export interface DiagramEdge {

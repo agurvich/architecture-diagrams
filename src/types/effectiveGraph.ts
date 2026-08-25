@@ -13,7 +13,7 @@ export interface EffectiveNode {
   parentId?: NodeId;
   metadata: Record<string, string>;
   color?: string;
-  icon?: string;
+  icon?: string | null;
   dimmed: boolean;
   highlighted: boolean;
 }

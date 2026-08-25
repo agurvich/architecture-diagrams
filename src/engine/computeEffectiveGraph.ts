@@ -25,6 +25,19 @@ export function computeEffectiveGraph(
     return cached;
   };
 
+  const nodeById = new Map(diagram.nodes.map((n) => [n.id, n]));
+  const colorCache = new Map<NodeId, string | undefined>();
+  // A node with no color of its own inherits the nearest ancestor's,
+  // the way it would in CSS — an explicit color set anywhere in the
+  // chain "wins" for everything below it until overridden again.
+  const resolveColor = (nodeId: NodeId): string | undefined => {
+    if (colorCache.has(nodeId)) return colorCache.get(nodeId);
+    const node = nodeById.get(nodeId);
+    const color = node?.color ?? (node?.parentId ? resolveColor(node.parentId) : undefined);
+    colorCache.set(nodeId, color);
+    return color;
+  };
+
   // --- Visible nodes ---
   const visibleNodes: EffectiveNode[] = [];
   for (const node of diagram.nodes) {
@@ -48,7 +61,7 @@ export function computeEffectiveGraph(
       // is always safe to use directly here.
       parentId: node.parentId,
       metadata: node.metadata,
-      color: node.color,
+      color: resolveColor(node.id),
       icon: node.icon,
       dimmed: false,
       highlighted: false,

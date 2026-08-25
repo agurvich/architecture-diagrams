@@ -115,7 +115,16 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor={`${idPrefix}-icon-search`}>Icon</Label>
+        <Label htmlFor={`${idPrefix}-icon-search`}>
+          Icon —{' '}
+          {node.icon === undefined ? (
+            <span className="font-normal text-muted-foreground">Auto (guessing "{autoIconKey}")</span>
+          ) : node.icon === null ? (
+            <span className="font-normal text-muted-foreground">None (pinned)</span>
+          ) : (
+            <span className="font-normal text-muted-foreground">Pinned</span>
+          )}
+        </Label>
         <Input
           id={`${idPrefix}-icon-search`}
           type="text"
@@ -125,12 +134,19 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
         />
         <div className="grid max-h-40 grid-cols-6 gap-1 overflow-y-auto p-0.5">
           <button
-            className={`col-span-2 flex cursor-pointer items-center justify-center gap-1 rounded-md border py-1.5 text-[11px] hover:bg-accent ${!node.icon ? 'border-primary bg-accent text-accent-foreground' : ''}`}
-            title={`Auto — currently guessing "${autoIconKey}" from the label/metadata`}
+            className={`col-span-3 flex cursor-pointer items-center justify-center gap-1 rounded-md border py-1.5 text-[11px] hover:bg-accent ${node.icon === undefined ? 'border-primary bg-accent text-accent-foreground' : ''}`}
+            title={`Auto — currently guessing "${autoIconKey}" from the label/metadata, updates live as you type`}
             onClick={() => updateNode(node.id, { icon: undefined })}
           >
             {AutoIcon && <AutoIcon />}
             Auto
+          </button>
+          <button
+            className={`col-span-3 flex cursor-pointer items-center justify-center gap-1 rounded-md border py-1.5 text-[11px] hover:bg-accent ${node.icon === null ? 'border-primary bg-accent text-accent-foreground' : ''}`}
+            title="Pin to no icon"
+            onClick={() => updateNode(node.id, { icon: null })}
+          >
+            None
           </button>
           {filteredIcons.map(({ key, label, Icon }) => (
             <button

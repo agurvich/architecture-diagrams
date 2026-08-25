@@ -113,6 +113,28 @@ describe('computeEffectiveGraph', () => {
     expect(expanded.visibleNodes.some((n) => n.id === 'cache')).toBe(true);
   });
 
+  it('inherits color from the nearest ancestor with one set, and lets an explicit color override it', () => {
+    const diagram = makeFixture();
+    diagram.nodes.find((n) => n.id === 'cluster')!.color = '#ff0000';
+
+    const expanded = computeEffectiveGraph(diagram, { activeSets: allSets, expandedNodes: new Set(['cluster']) });
+    const a = expanded.visibleNodes.find((n) => n.id === 'a')!;
+    const b = expanded.visibleNodes.find((n) => n.id === 'b')!;
+    expect(a.color).toBe('#ff0000');
+    expect(b.color).toBe('#ff0000');
+
+    diagram.nodes.find((n) => n.id === 'a')!.color = '#00ff00';
+    const expanded2 = computeEffectiveGraph(diagram, { activeSets: allSets, expandedNodes: new Set(['cluster']) });
+    expect(expanded2.visibleNodes.find((n) => n.id === 'a')!.color).toBe('#00ff00');
+    expect(expanded2.visibleNodes.find((n) => n.id === 'b')!.color).toBe('#ff0000');
+  });
+
+  it('leaves color undefined when neither the node nor any ancestor has one', () => {
+    const diagram = makeFixture();
+    const { visibleNodes } = computeEffectiveGraph(diagram, { activeSets: allSets, expandedNodes: new Set(['cluster']) });
+    expect(visibleNodes.find((n) => n.id === 'a')!.color).toBeUndefined();
+  });
+
   it('resolves a group-level edge to the parent regardless of expand state', () => {
     const diagram = makeFixture();
 
