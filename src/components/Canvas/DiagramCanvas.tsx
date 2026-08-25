@@ -20,6 +20,7 @@ import type { EffectiveNode } from '../../types/effectiveGraph';
 import { GraphNode, type GraphNodeType } from './GraphNode';
 import { GraphEdge, type GraphEdgeType } from './GraphEdge';
 import { ConnectionPopover, type PendingConnection } from './ConnectionPopover';
+import { PaneContextMenu } from './PaneContextMenu';
 
 const LEAF_SIZE = { width: 170, height: 64 };
 const CONTAINER_PADDING = 20;
@@ -101,11 +102,13 @@ export function DiagramCanvas() {
   const multiSelectedNodeIds = useDiagramStore((s) => s.multiSelectedNodeIds);
   const setMultiSelectedNodeIds = useDiagramStore((s) => s.setMultiSelectedNodeIds);
   const updateNode = useDiagramStore((s) => s.updateNode);
+  const addNode = useDiagramStore((s) => s.addNode);
   const deleteNode = useDiagramStore((s) => s.deleteNode);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
   const setNodeDragging = useDiagramStore((s) => s.setNodeDragging);
 
   const [pending, setPending] = useState<PendingConnection | null>(null);
+  const [paneMenu, setPaneMenu] = useState<{ screenX: number; screenY: number } | null>(null);
 
   const currentFrame = diagram.frames.find((f) => f.id === currentFrameId) ?? null;
 
@@ -188,7 +191,7 @@ export function DiagramCanvas() {
     [updateNode],
   );
 
-  const { getInternalNode } = useReactFlow<GraphNodeType, GraphEdgeType>();
+  const { getInternalNode, screenToFlowPosition } = useReactFlow<GraphNodeType, GraphEdgeType>();
 
   // Dropping a node inside an expanded container's box reparents it there;
   // dropping a currently-nested node outside every container un-parents it
@@ -287,7 +290,28 @@ export function DiagramCanvas() {
     select(null);
     setHover(null);
     setMultiSelectedNodeIds(new Set());
+    setPaneMenu(null);
   }, [select, setHover, setMultiSelectedNodeIds]);
+
+  // React Flow only calls this for a right-click on empty canvas — clicks
+  // on a node/edge go to their own onNodeContextMenu/onEdgeContextMenu
+  // instead, so there's no risk of this colliding with GraphNode/GraphEdge's
+  // own per-element context menus the way nesting a shadcn ContextMenu
+  // around the whole canvas would (Radix's trigger doesn't stop the
+  // contextmenu event from bubbling, so an outer + inner ContextMenu would
+  // both try to open).
+  const onPaneContextMenu = useCallback((event: MouseEvent | React.MouseEvent) => {
+    event.preventDefault();
+    setPaneMenu({ screenX: event.clientX, screenY: event.clientY });
+  }, []);
+
+  const handleAddNodeFromPaneMenu = useCallback(() => {
+    if (!paneMenu) return;
+    const position = screenToFlowPosition({ x: paneMenu.screenX, y: paneMenu.screenY });
+    const id = addNode({ label: 'New node', position, metadata: {} });
+    select({ kind: 'node', id });
+    setPaneMenu(null);
+  }, [paneMenu, screenToFlowPosition, addNode, select]);
 
   // Marquee (shift-drag) box-select reports its result here — this is the
   // other half of feeding `selected` back into rfNodes above. Without
@@ -374,6 +398,7 @@ export function DiagramCanvas() {
         onConnectEnd={onConnectEnd}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onPaneContextMenu={onPaneContextMenu}
         onSelectionChange={onSelectionChange}
         onNodesDelete={onNodesDelete}
         onEdgesDelete={onEdgesDelete}
@@ -386,6 +411,14 @@ export function DiagramCanvas() {
         <Controls />
       </ReactFlow>
       {pending && <ConnectionPopover pending={pending} onDone={() => setPending(null)} />}
+      {paneMenu && (
+        <PaneContextMenu
+          screenX={paneMenu.screenX}
+          screenY={paneMenu.screenY}
+          onAddNode={handleAddNodeFromPaneMenu}
+          onClose={() => setPaneMenu(null)}
+        />
+      )}
     </div>
   );
 }
