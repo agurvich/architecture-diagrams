@@ -144,7 +144,15 @@ export function DiagramCanvas() {
           // reparent-on-drop logic below can detect the drag leaving (or
           // entering) a container in the first place.
           data: n,
+          // Both the CSS box (style) and React Flow's own width/height
+          // fields: the latter is what floatingEdgeUtils.ts reads to place
+          // an edge on a node's actual border rather than waiting on
+          // ResizeObserver to report `measured` back (see the comment
+          // there — with a fully controlled, always-new-object node array,
+          // that measurement lags on effectively every render).
           style: { width: size.width, height: size.height },
+          width: size.width,
+          height: size.height,
           draggable: true,
           // Feeds our own selection state back to React Flow so its
           // marquee (shift-drag) box-select and Delete/Backspace key

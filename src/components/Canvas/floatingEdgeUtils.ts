@@ -5,18 +5,36 @@ import { Position, type InternalNode } from '@xyflow/react';
 // node's rectangle, so an edge visually attaches to the node's border
 // regardless of which side is closest — this matters here because a node's
 // effective size/position changes as it toggles leaf/collapsed/expanded.
+// React Flow only fills in `measured.width/height` after its own
+// ResizeObserver pass reports back post-paint — and since this app is
+// fully controlled and rebuilds a brand-new node object on every render
+// (nothing is ever the same reference twice), React Flow's internal
+// "unchanged node" fast path never applies, so `measured` gets reset on
+// every single recompute and briefly reads `undefined` far more often
+// than in a typical app. With `?? 0` that collapsed the intersection
+// point to the node's top-left corner (0-radius rectangle) on practically
+// every render. `sizeOf` prefers the top-level `width`/`height` we set
+// explicitly on each node in DiagramCanvas — synchronously correct,
+// no measurement lag — falling back to `measured` only if neither was set.
+function sizeOf(node: InternalNode): { width: number; height: number } {
+  return {
+    width: node.width ?? node.measured.width ?? 0,
+    height: node.height ?? node.measured.height ?? 0,
+  };
+}
+
 function getNodeIntersection(intersectionNode: InternalNode, targetNode: InternalNode) {
-  const { width: iw, height: ih } = intersectionNode.measured;
+  const { width: iw, height: ih } = sizeOf(intersectionNode);
   const intersectionNodePosition = intersectionNode.internals.positionAbsolute;
   const targetPosition = targetNode.internals.positionAbsolute;
 
-  const w = (iw ?? 0) / 2;
-  const h = (ih ?? 0) / 2;
+  const w = iw / 2;
+  const h = ih / 2;
 
   const x2 = intersectionNodePosition.x + w;
   const y2 = intersectionNodePosition.y + h;
-  const x1 = targetPosition.x + (targetNode.measured.width ?? 0) / 2;
-  const y1 = targetPosition.y + (targetNode.measured.height ?? 0) / 2;
+  const x1 = targetPosition.x + sizeOf(targetNode).width / 2;
+  const y1 = targetPosition.y + sizeOf(targetNode).height / 2;
 
   const xx1 = (x1 - x2) / (2 * w || 1);
   const yy1 = (y1 - y2) / (2 * h || 1);
@@ -31,8 +49,7 @@ function getNodeIntersection(intersectionNode: InternalNode, targetNode: Interna
 
 function getEdgePosition(node: InternalNode, intersectionPoint: { x: number; y: number }) {
   const pos = node.internals.positionAbsolute;
-  const width = node.measured.width ?? 0;
-  const height = node.measured.height ?? 0;
+  const { width, height } = sizeOf(node);
   const nx = Math.round(pos.x);
   const ny = Math.round(pos.y);
   const px = Math.round(intersectionPoint.x);
