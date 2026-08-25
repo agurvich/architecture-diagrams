@@ -148,7 +148,18 @@ import {
   FaVideo,
   FaWallet,
   FaWifi,
-  FaWineGlass
+  FaWineGlass,
+  FaBucket,
+  FaWarehouse,
+  FaCube,
+  FaCertificate,
+  FaWrench,
+  FaBoxesStacked,
+  FaShuffle,
+  FaList,
+  FaDiagramProject,
+  FaCircleNodes,
+  FaHexagonNodes,
 } from 'react-icons/fa6';
 
 /**
@@ -318,6 +329,17 @@ export const ICON_OPTIONS: IconOption[] = [
   { key: "wallet", label: "Wallet", Icon: FaWallet },
   { key: "wifi", label: "Wifi", Icon: FaWifi },
   { key: "wine-glass", label: "Wine Glass", Icon: FaWineGlass },
+  { key: "bucket", label: "Bucket (S3)", Icon: FaBucket },
+  { key: "warehouse", label: "Warehouse", Icon: FaWarehouse },
+  { key: "cube", label: "Cube / Module", Icon: FaCube },
+  { key: "certificate", label: "Certificate", Icon: FaCertificate },
+  { key: "wrench", label: "Maintenance / Ops", Icon: FaWrench },
+  { key: "boxes-stacked", label: "Bulk Storage", Icon: FaBoxesStacked },
+  { key: "shuffle", label: "Routing / Balancing", Icon: FaShuffle },
+  { key: "list", label: "Queue / List", Icon: FaList },
+  { key: "diagram-project", label: "Architecture Diagram", Icon: FaDiagramProject },
+  { key: "circle-nodes", label: "Network / Cluster", Icon: FaCircleNodes },
+  { key: "hexagon-nodes", label: "Distributed Nodes", Icon: FaHexagonNodes },
 ];
 
 const ICON_BY_KEY = new Map(ICON_OPTIONS.map((opt) => [opt.key, opt.Icon]));

@@ -1,18 +1,11 @@
-import { FALLBACK_ICON_KEY, ICON_MATCH_RULES } from './matcherRules';
-import { INFRA_ICON_MATCH_RULES } from './infraMatchRules';
-
-// Infra rules first: this app's nodes are servers and databases, not
-// laundry and gym sessions, so architecture-domain terms should win before
-// falling through to the ported personal-habit vocabulary.
-const ALL_RULES = [...INFRA_ICON_MATCH_RULES, ...ICON_MATCH_RULES];
+import { FALLBACK_ICON_KEY, ICON_MATCH_RULES } from './infraMatchRules';
 
 /**
- * Ports LoopIconMatcher.swift's matching algorithm (see
- * NOTE-FOR-CLAUDE-AGENT-ICON-LABELING-BRIEF.md): a hand-authored keyword
- * dictionary, no AI/LLM call. "Hierarchical" the same way the source does:
+ * Automatic icon matching for node labels/metadata — no AI/LLM call, a
+ * hand-authored ordered keyword table (see infraMatchRules.ts), matched the
+ * same way LoopIconMatcher.swift did (see git history for that source):
  * (1) rule order — specific terms are checked before broad catch-alls, so
- * the first matching rule in ALL_RULES wins (infra-domain rules first, see
- * infraMatchRules.ts, then the ported table); (2) field cascade — see
+ * the first matching rule in ICON_MATCH_RULES wins; (2) field cascade — see
  * guessIconKey, which tries the node's own label before falling back to its
  * metadata values.
  */
@@ -25,8 +18,8 @@ function wordMatches(pattern: string, word: string): boolean {
  * A single-word alternative matches as a whole word (with simple
  * singular/plural handling in both directions), so a short keyword like
  * "car" doesn't false-positive match substrings inside unrelated words
- * like "carpet". A multi-word alternative (contains a space, e.g. "physical
- * therapy") matches as a plain substring, since a real phrase isn't at
+ * like "carpet". A multi-word alternative (contains a space, e.g. "load
+ * balancer") matches as a plain substring, since a real phrase isn't at
  * meaningful risk of appearing inside an unrelated word.
  */
 function patternMatches(pattern: string, text: string): boolean {
@@ -43,7 +36,7 @@ function patternMatches(pattern: string, text: string): boolean {
 }
 
 function matchOne(text: string): string | null {
-  for (const rule of ALL_RULES) {
+  for (const rule of ICON_MATCH_RULES) {
     if (patternMatches(rule.pattern, text)) return rule.iconKey;
   }
   return null;

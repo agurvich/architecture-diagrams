@@ -4,57 +4,51 @@ import { getIconComponent } from './registry';
 
 describe('guessIconKey', () => {
   it('matches a direct keyword', () => {
-    expect(guessIconKey('Gym')).toBe('dumbbell');
-    expect(guessIconKey('Laundry')).toBe('jug-detergent');
+    expect(guessIconKey('Primary Database')).toBe('database');
+    expect(guessIconKey('Redis Cache')).toBe('fire');
   });
 
   it('is case-insensitive', () => {
-    expect(guessIconKey('GYM')).toBe('dumbbell');
+    expect(guessIconKey('REDIS CACHE')).toBe('fire');
   });
 
   it('matches whole words only, not substrings inside unrelated words', () => {
-    // "car" must not match inside "carpet"
-    expect(guessIconKey('Vacuum the carpet')).not.toBe('car');
-    expect(guessIconKey('Vacuum the carpet')).toBe('broom'); // vacuum|sweep|dust|mop
+    // "key" must not match inside unrelated words like "monkey"/"keyboard"
+    expect(guessIconKey('Monkey keyboard service')).not.toBe('key');
   });
 
   it('handles simple singular/plural in both directions', () => {
-    expect(guessIconKey('Confirm plans')).toBe('calendar-check'); // "plan" rule matches "plans"
-    expect(guessIconKey('Take meds')).toBe('pills'); // "med" rule matches "meds"
+    expect(guessIconKey('Users table')).toBe('users'); // "users" rule matches directly
+    expect(guessIconKey('Secrets store')).toBe('key'); // "secret" rule matches "secrets"
   });
 
   it('matches a multi-word phrase as a substring', () => {
-    expect(guessIconKey('Book a hotel')).toBe('hotel');
+    expect(guessIconKey('Load Balancer')).toBe('gauge'); // "load balancer" phrase
   });
 
-  it('respects rule order — earlier, more specific rules win', () => {
-    // "dentist" is checked before the broader "doctor|...|appointment" rule
-    expect(guessIconKey('Dentist appointment')).toBe('tooth');
+  it('matches a specific bucket/S3 rule ahead of the broader storage rule', () => {
+    expect(guessIconKey('S3 Bucket')).toBe('bucket');
+    expect(guessIconKey('Object Storage Volume')).toBe('hard-drive');
   });
 
   it('falls back to sub-fields when the primary text has no match', () => {
-    expect(guessIconKey('Weekly routine', ['Gym'])).toBe('dumbbell');
+    expect(guessIconKey('Widget', ['PostgreSQL'])).toBe('database');
   });
 
   it('falls back to the generic icon when nothing matches at all', () => {
     expect(guessIconKey('Xyzzy plugh', ['Qwerty'])).toBe('list-check');
   });
 
-  it('matches architecture/infra vocabulary before falling through to the ported personal-habit table', () => {
+  it('matches core architecture/infra vocabulary', () => {
     expect(guessIconKey('Primary Database')).toBe('database');
     expect(guessIconKey('Load Balancer')).toBe('gauge');
     expect(guessIconKey('Redis Cache')).toBe('fire');
     expect(guessIconKey('API Gateway')).toBe('bridge');
-    // "api" is checked as its own infra rule; "gateway" would also match,
-    // but "api" appears first in the pattern's word order — either way this
-    // should not fall through to the generic icon.
     expect(guessIconKey('API Gateway')).not.toBe('list-check');
   });
 
   it('every icon key referenced by a rule resolves to a real registered icon', () => {
-    // Exercises the whole rule table via getIconComponent rather than
-    // duplicating the rule list here.
-    const samples = ['Gym', 'Laundry', 'Dentist', 'Book a hotel', 'Confirm plans', 'nonsense-xyzzy'];
+    const samples = ['Primary Database', 'Load Balancer', 'Redis Cache', 'S3 Bucket', 'nonsense-xyzzy'];
     for (const s of samples) {
       const key = guessIconKey(s);
       expect(getIconComponent(key)).toBeDefined();
