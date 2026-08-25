@@ -19,6 +19,11 @@ export type GraphNodeType = Node<EffectiveNode, 'graphNode'>;
 
 const HANDLE_POSITIONS = [Position.Top, Position.Right, Position.Bottom, Position.Left];
 
+// Matches the old default border-gray-400, used so every node gets an icon
+// badge (not just colored ones) — a plain monochrome icon was too easy to
+// miss next to a colored one at a glance.
+const DEFAULT_ACCENT = '#9ca3af';
+
 const NODE_BASE =
   'graph-node relative flex h-full w-full items-center justify-center gap-1.5 rounded-lg border-[1.5px] border-l-4 border-gray-400 bg-white px-2.5 py-1.5 text-center text-xs font-medium text-foreground transition-[opacity,box-shadow] duration-150';
 
@@ -71,7 +76,16 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
     />
   ));
 
-  const accentStyle: React.CSSProperties | undefined = data.color ? { borderLeftColor: data.color } : undefined;
+  const accentColor = data.color ?? DEFAULT_ACCENT;
+  const accentStyle: React.CSSProperties = {
+    borderLeftColor: accentColor,
+    // A colored node washes its whole card, not just the border strip —
+    // a 4px accent line was too easy to miss at a glance in a busy
+    // diagram. Left unset (falling back to the class-based bg-white/
+    // bg-muted) when the node has no explicit color, so "no color" still
+    // reads as visually distinct from "has a color".
+    background: data.color ? `color-mix(in oklch, ${data.color}, white 88%)` : undefined,
+  };
   // Three states: a pinned icon key always wins; a pinned `null` means no
   // icon at all; `undefined` (the default) guesses live from the label and
   // metadata values, the way LoopIconMatcher.swift's `resolvedIcon` does —
@@ -80,8 +94,16 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   const resolvedIconKey =
     data.icon === null ? null : (data.icon ?? guessIconKey(data.label, Object.values(data.metadata)));
   const NodeIcon = resolvedIconKey ? getIconComponent(resolvedIconKey) : undefined;
+  // A colored badge behind the icon (rather than just tinting the glyph)
+  // reads at a glance even in a dense diagram — a same-size monochrome
+  // icon blended into the label text next to it.
   const icon = NodeIcon && (
-    <NodeIcon className="graph-node__icon shrink-0 text-sm" style={data.color ? { color: data.color } : undefined} />
+    <span
+      className="graph-node__icon graph-node__icon-badge flex size-[22px] shrink-0 items-center justify-center rounded-md shadow-sm"
+      style={{ background: accentColor }}
+    >
+      <NodeIcon className="text-white" style={{ fontSize: 13 }} />
+    </span>
   );
 
   const handleAddChild = () => {
