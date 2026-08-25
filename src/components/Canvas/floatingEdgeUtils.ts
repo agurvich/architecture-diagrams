@@ -36,8 +36,18 @@ function getNodeIntersection(intersectionNode: InternalNode, targetNode: Interna
   const x1 = targetPosition.x + sizeOf(targetNode).width / 2;
   const y1 = targetPosition.y + sizeOf(targetNode).height / 2;
 
-  const xx1 = (x1 - x2) / (2 * w || 1);
-  const yy1 = (y1 - y2) / (2 * h || 1);
+  // Rotate 45° into a coordinate space where the rectangle maps to a
+  // diamond, so "intersect the diamond" (trivial: normalize to the L1
+  // unit circle) corresponds to "intersect the rectangle" back in real
+  // space. Combining dx/dy this way — not treating them as independent
+  // per-axis fractions — is the part that was missing here: without it,
+  // this collapses to a rectangle *corner* for any perfectly vertical or
+  // horizontal line (dx=0 or dy=0), since one of the two terms vanishes
+  // instead of the two rotated terms partially canceling.
+  const dx = (x1 - x2) / (2 * w || 1);
+  const dy = (y1 - y2) / (2 * h || 1);
+  const xx1 = dx - dy;
+  const yy1 = dx + dy;
   const a = 1 / (Math.abs(xx1) + Math.abs(yy1) || 1);
   const xx3 = a * xx1;
   const yy3 = a * yy1;
