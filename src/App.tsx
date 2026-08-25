@@ -23,22 +23,22 @@ function App() {
           <Toolbar />
           <div className="flex min-h-0 flex-1">
             <aside
-              className={`relative flex shrink-0 flex-col overflow-y-auto border-r bg-card transition-[width] duration-150 ${
-                leftCollapsed ? 'w-8 gap-0 p-0' : 'w-[260px] gap-2.5 p-2.5'
+              className={`relative flex min-h-0 shrink-0 flex-col border-r bg-card transition-[width] duration-150 ${
+                leftCollapsed ? 'w-8' : 'w-[260px]'
               }`}
             >
               <button
-                className="absolute top-2 right-1.5 z-10 cursor-pointer rounded border-none bg-transparent p-0.5 text-muted-foreground hover:bg-accent"
+                className="absolute top-2 right-1.5 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border bg-card text-muted-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
                 onClick={() => setLeftCollapsed((v) => !v)}
                 title={leftCollapsed ? 'Expand panel' : 'Collapse panel'}
               >
                 {leftCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
               </button>
               {!leftCollapsed && (
-                <>
+                <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-2.5 pt-9">
                   <EdgeSetTogglePanel />
                   <HierarchyPanel />
-                </>
+                </div>
               )}
             </aside>
             <main className="relative min-w-0 flex-1">
@@ -46,22 +46,22 @@ function App() {
               <FramePlayerControls />
             </main>
             <aside
-              className={`relative flex shrink-0 flex-col overflow-y-auto border-l bg-card transition-[width] duration-150 ${
-                rightCollapsed ? 'w-8 gap-0 p-0' : 'w-[260px] gap-2.5 p-2.5'
+              className={`relative flex min-h-0 shrink-0 flex-col border-l bg-card transition-[width] duration-150 ${
+                rightCollapsed ? 'w-8' : 'w-[260px]'
               }`}
             >
               <button
-                className="absolute top-2 left-1.5 z-10 cursor-pointer rounded border-none bg-transparent p-0.5 text-muted-foreground hover:bg-accent"
+                className="absolute top-2 left-1.5 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border bg-card text-muted-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
                 onClick={() => setRightCollapsed((v) => !v)}
                 title={rightCollapsed ? 'Expand panel' : 'Collapse panel'}
               >
                 {rightCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
               </button>
               {!rightCollapsed && (
-                <>
+                <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-2.5 pt-9">
                   {selected && <PropertiesPanel />}
                   <FrameSequencerPanel />
-                </>
+                </div>
               )}
             </aside>
           </div>
