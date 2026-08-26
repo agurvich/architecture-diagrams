@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import { useDiagramStore } from '../../store/diagramStore';
+import { wouldCreateCycle } from '../../utils/nodeTree';
 import type { DiagramNode, NodeId } from '../../types/diagram';
 
 function buildTree(nodes: DiagramNode[]): Map<NodeId | undefined, DiagramNode[]> {
@@ -12,21 +15,96 @@ function buildTree(nodes: DiagramNode[]): Map<NodeId | undefined, DiagramNode[]>
   return map;
 }
 
+type DropZone = 'before' | 'after' | 'inside';
+
 export function HierarchyPanel() {
   const nodes = useDiagramStore((s) => s.diagram.nodes);
   const expandedNodes = useDiagramStore((s) => s.expandedNodes);
   const toggleExpand = useDiagramStore((s) => s.toggleExpand);
+  const expandNodes = useDiagramStore((s) => s.expandNodes);
   const select = useDiagramStore((s) => s.select);
+  const moveNode = useDiagramStore((s) => s.moveNode);
+
+  const [dragId, setDragId] = useState<NodeId | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: NodeId; zone: DropZone } | null>(null);
 
   const tree = buildTree(nodes);
   const roots = tree.get(undefined) ?? [];
 
+  // Top quarter of a row = reorder before it, bottom quarter = after it,
+  // the middle half = nest inside it as a new child — same three-way split
+  // Figma's own layers panel uses. Only sets a drop target when the
+  // resulting parent (the row's own parent for before/after, the row
+  // itself for inside) wouldn't create a cycle, so an invalid drop is
+  // simply not offered rather than accepted and rejected later.
+  const handleDragOver = (e: React.DragEvent, node: DiagramNode) => {
+    if (!dragId || dragId === node.id) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offset = e.clientY - rect.top;
+    const zone: DropZone = offset < rect.height * 0.25 ? 'before' : offset > rect.height * 0.75 ? 'after' : 'inside';
+    const resultingParentId = zone === 'inside' ? node.id : node.parentId;
+    if (resultingParentId && wouldCreateCycle(nodes, dragId, resultingParentId)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDropTarget({ id: node.id, zone });
+  };
+
+  const handleDrop = (e: React.DragEvent, node: DiagramNode) => {
+    e.preventDefault();
+    if (dragId && dropTarget?.id === node.id) {
+      if (dropTarget.zone === 'inside') {
+        moveNode(dragId, node.id, undefined);
+        if (!expandedNodes.has(node.id)) expandNodes([node.id]);
+      } else {
+        // Excluding the dragged node itself from this lookup means
+        // targetIdx/beforeId are always computed against where things
+        // will actually sit once it's removed, so "after" never
+        // accidentally resolves back to the dragged node's own id.
+        const siblings = (tree.get(node.parentId) ?? []).filter((n) => n.id !== dragId);
+        const targetIdx = siblings.findIndex((n) => n.id === node.id);
+        const beforeId = dropTarget.zone === 'before' ? node.id : siblings[targetIdx + 1]?.id;
+        moveNode(dragId, node.parentId, beforeId);
+      }
+    }
+    setDragId(null);
+    setDropTarget(null);
+  };
+
   const renderNode = (node: DiagramNode, depth: number) => {
     const children = tree.get(node.id) ?? [];
     const hasChildren = children.length > 0;
+    const isDropTarget = dropTarget?.id === node.id;
     return (
-      <div key={node.id} style={{ paddingLeft: depth * 14 }}>
-        <div className="flex items-center gap-1 py-0.5">
+      <div key={node.id}>
+        <div
+          style={{ paddingLeft: depth * 14 }}
+          draggable
+          onDragStart={(e) => {
+            e.stopPropagation();
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', node.id);
+            setDragId(node.id);
+          }}
+          onDragOver={(e) => {
+            e.stopPropagation();
+            handleDragOver(e, node);
+          }}
+          onDrop={(e) => {
+            e.stopPropagation();
+            handleDrop(e, node);
+          }}
+          onDragEnd={() => {
+            setDragId(null);
+            setDropTarget(null);
+          }}
+          className={cn(
+            'flex items-center gap-1 border-t-2 border-b-2 border-transparent py-0.5',
+            dragId === node.id && 'opacity-40',
+            isDropTarget && dropTarget.zone === 'before' && 'border-t-primary',
+            isDropTarget && dropTarget.zone === 'after' && 'border-b-primary',
+            isDropTarget && dropTarget.zone === 'inside' && 'rounded bg-accent',
+          )}
+        >
           {hasChildren ? (
             <button
               className="w-[18px] cursor-pointer border-none bg-transparent p-0 text-center"

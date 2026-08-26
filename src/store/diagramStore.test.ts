@@ -143,3 +143,68 @@ describe('diagramStore — import and reset to imported', () => {
     expect(state.currentFrameId).toBeNull();
   });
 });
+
+describe('diagramStore — moveNode (hierarchy panel drag-to-reorder/reparent)', () => {
+  beforeEach(() => {
+    useDiagramStore.getState().loadSeed();
+  });
+
+  function threeRoots() {
+    const { addNode } = useDiagramStore.getState();
+    const a = addNode({ label: 'A', position: { x: 0, y: 0 }, metadata: {} });
+    const b = addNode({ label: 'B', position: { x: 0, y: 0 }, metadata: {} });
+    const c = addNode({ label: 'C', position: { x: 0, y: 0 }, metadata: {} });
+    return { a, b, c };
+  }
+
+  // Filters to just the given ids, in their current relative array order —
+  // the seed diagram already has its own top-level nodes, so a bare
+  // "every root, in order" comparison would break the moment the demo
+  // data changes (as it already has several times this project).
+  function orderOf(ids: string[]) {
+    const order = useDiagramStore.getState().diagram.nodes.map((n) => n.id);
+    return [...ids].sort((x, y) => order.indexOf(x) - order.indexOf(y));
+  }
+
+  it('reorders a node before a sibling, keeping the same parent', () => {
+    const { a, b, c } = threeRoots();
+    useDiagramStore.getState().moveNode(c, undefined, a);
+    expect(orderOf([a, b, c])).toEqual([c, a, b]);
+  });
+
+  it("reorders a node after a sibling by using the sibling's current successor as beforeId", () => {
+    const { a, b, c } = threeRoots();
+    // Move A to sit right after B: beforeId = whichever node currently
+    // follows B among A's future siblings (C).
+    useDiagramStore.getState().moveNode(a, undefined, c);
+    expect(orderOf([a, b, c])).toEqual([b, a, c]);
+  });
+
+  it('moves a node to the end when beforeId is undefined', () => {
+    const { a, b, c } = threeRoots();
+    useDiagramStore.getState().moveNode(a, undefined, undefined);
+    expect(orderOf([a, b, c])).toEqual([b, c, a]);
+  });
+
+  it('reparents a node when dropped "inside" another (parentId changes, appended at the end of the new parent\'s children)', () => {
+    const { a, b, c } = threeRoots();
+    useDiagramStore.getState().moveNode(c, a, undefined);
+    const nodes = useDiagramStore.getState().diagram.nodes;
+    expect(nodes.find((n) => n.id === c)!.parentId).toBe(a);
+    expect(nodes.filter((n) => n.parentId === a).map((n) => n.id)).toEqual([c]);
+    void b;
+  });
+
+  it('reordering across a reparenting drop (before a specific child of the new parent) works in one call', () => {
+    const { addNode } = useDiagramStore.getState();
+    const parent = addNode({ label: 'Parent', position: { x: 0, y: 0 }, metadata: {} });
+    const child1 = addNode({ label: 'Child1', parentId: parent, position: { x: 0, y: 0 }, metadata: {} });
+    const outsider = addNode({ label: 'Outsider', position: { x: 0, y: 0 }, metadata: {} });
+
+    useDiagramStore.getState().moveNode(outsider, parent, child1);
+
+    const nodes = useDiagramStore.getState().diagram.nodes;
+    expect(nodes.find((n) => n.id === outsider)!.parentId).toBe(parent);
+    expect(nodes.filter((n) => n.parentId === parent).map((n) => n.id)).toEqual([outsider, child1]);
+  });
+});

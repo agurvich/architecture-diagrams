@@ -84,6 +84,18 @@ interface DiagramStore {
   updateNode: (id: NodeId, patch: Partial<DiagramNode>) => void;
   deleteNode: (id: NodeId) => void;
   setNodeParent: (nodeId: NodeId, parentId: NodeId | undefined) => void;
+  /**
+   * Repositions nodeId in the raw diagram.nodes array — the source of
+   * truth for sibling order everywhere order is ever shown (currently
+   * just HierarchyPanel's tree, same idea as reorderFrames below for
+   * frames) — under parentId, immediately before beforeId, or at the end
+   * of that parent's children if beforeId is undefined. Also reparents:
+   * this is the single operation behind both a plain drag-to-reorder
+   * (beforeId set, parentId unchanged) and a drag-to-nest (parentId
+   * changed) in the hierarchy panel, since dropping a layer at a new spot
+   * in the tree naturally means both at once.
+   */
+  moveNode: (nodeId: NodeId, parentId: NodeId | undefined, beforeId: NodeId | undefined) => void;
   /** Appends a color to the accumulating palette (deduped, no-op if already present). */
   addPaletteColor: (color: string) => void;
 
@@ -332,6 +344,17 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         ...diagram,
         nodes: diagram.nodes.map((n) => (n.id === nodeId ? { ...n, parentId } : n)),
       })),
+
+    moveNode: (nodeId, parentId, beforeId) =>
+      persistAndSet(set, (diagram) => {
+        const node = diagram.nodes.find((n) => n.id === nodeId);
+        if (!node) return diagram;
+        const moved = { ...node, parentId };
+        const rest = diagram.nodes.filter((n) => n.id !== nodeId);
+        const insertAt = beforeId ? rest.findIndex((n) => n.id === beforeId) : -1;
+        const nodes = insertAt === -1 ? [...rest, moved] : [...rest.slice(0, insertAt), moved, ...rest.slice(insertAt)];
+        return { ...diagram, nodes };
+      }),
 
     addPaletteColor: (color) =>
       persistAndSet(set, (diagram) => {

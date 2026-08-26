@@ -8,17 +8,9 @@ import type { NodeId } from '../../../types/diagram';
 import { ICON_OPTIONS, getIconComponent } from '../../../icons/registry';
 import { guessIconKey } from '../../../icons/iconMatcher';
 import { DEFAULT_AUTO_LAYOUT_GAP } from '../../../engine/containerLayout';
+import { wouldCreateCycle } from '../../../utils/nodeTree';
 
 const DEFAULT_COLOR = '#98a2b3';
-
-function wouldCreateCycle(nodes: { id: NodeId; parentId?: NodeId }[], nodeId: NodeId, candidateParentId: NodeId): boolean {
-  let current: NodeId | undefined = candidateParentId;
-  while (current) {
-    if (current === nodeId) return true;
-    current = nodes.find((n) => n.id === current)?.parentId;
-  }
-  return false;
-}
 
 export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
   const nodes = useDiagramStore((s) => s.diagram.nodes);
