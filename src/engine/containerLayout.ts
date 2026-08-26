@@ -4,12 +4,15 @@ export const LEAF_SIZE = { width: 170, height: 64 };
 export const CONTAINER_PADDING = 20;
 export const CONTAINER_HEADER_HEIGHT = 34;
 export const ANCHOR_SIZE = 26;
-// Matches the vertical rhythm every hand-authored diagram already uses
-// for stacked children (see e.g. seedDiagram.ts's `y: 40`, `y: 114`, ...,
-// each 74px apart — LEAF_SIZE.height + this gap) so switching a container
-// over to auto-layout-vertical with the default gap doesn't visually
-// shift anything already laid out that way by convention.
-export const DEFAULT_AUTO_LAYOUT_GAP = 10;
+// Large enough that an edge drawn between two adjacent auto-layout
+// siblings has room to show both a visible line segment and its
+// arrowhead (the marker itself is 7x7, see DiagramCanvas.tsx's
+// <marker id="graph-edge-arrow">) instead of the two boxes crowding
+// right up against each other with nothing but the arrowhead squeezed
+// into the gap. Only the fallback for a container that has never had its
+// own gap set — editing an existing container's gap (properties panel or
+// its own stored value) always wins over this.
+export const DEFAULT_AUTO_LAYOUT_GAP = 40;
 
 export type Size = { width: number; height: number };
 
