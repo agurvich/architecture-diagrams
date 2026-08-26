@@ -4,17 +4,8 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { cn } from '@/lib/utils';
 import { useDiagramStore } from '../../store/diagramStore';
 import { wouldCreateCycle } from '../../utils/nodeTree';
+import { groupByParent } from '../../utils/groupByParent';
 import type { DiagramNode, NodeId } from '../../types/diagram';
-
-function buildTree(nodes: DiagramNode[]): Map<NodeId | undefined, DiagramNode[]> {
-  const map = new Map<NodeId | undefined, DiagramNode[]>();
-  for (const n of nodes) {
-    const list = map.get(n.parentId) ?? [];
-    list.push(n);
-    map.set(n.parentId, list);
-  }
-  return map;
-}
 
 // rootId's own id plus every descendant's — the set a recursive
 // expand/collapse-all needs to hand to expandNodes/collapseNodes.
@@ -50,7 +41,7 @@ export function HierarchyPanel() {
   const [dragId, setDragId] = useState<NodeId | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: NodeId; zone: DropZone } | null>(null);
 
-  const tree = buildTree(nodes);
+  const tree = groupByParent(nodes);
   const roots = tree.get(undefined) ?? [];
 
   // Only sets a drop target when the resulting parent (the row's own

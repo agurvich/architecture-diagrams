@@ -1,4 +1,5 @@
 import type { EffectiveNode } from '../types/effectiveGraph';
+import { groupByParent } from '../utils/groupByParent';
 
 export const LEAF_SIZE = { width: 170, height: 64 };
 export const CONTAINER_PADDING = 20;
@@ -16,18 +17,6 @@ export const DEFAULT_AUTO_LAYOUT_GAP = 40;
 
 export type Size = { width: number; height: number };
 
-function buildChildrenIndex(nodes: EffectiveNode[]): Map<string, EffectiveNode[]> {
-  const childrenOf = new Map<string, EffectiveNode[]>();
-  for (const n of nodes) {
-    if (n.parentId) {
-      const list = childrenOf.get(n.parentId) ?? [];
-      list.push(n);
-      childrenOf.set(n.parentId, list);
-    }
-  }
-  return childrenOf;
-}
-
 /**
  * Each visible node's rendered size, bottom-up: a leaf (or a
  * collapsed/childless group) is always LEAF_SIZE; an expanded container's
@@ -39,7 +28,7 @@ function buildChildrenIndex(nodes: EffectiveNode[]): Map<string, EffectiveNode[]
  */
 export function computeContainerSizes(nodes: EffectiveNode[]): Map<string, Size> {
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const childrenOf = buildChildrenIndex(nodes);
+  const childrenOf = groupByParent(nodes);
   const sizeCache = new Map<string, Size>();
 
   function sizeOf(id: string): Size {
@@ -130,7 +119,7 @@ export function computeAutoLayoutPositions(
   sizes: Map<string, Size>,
   excludeId?: string,
 ): Map<string, { x: number; y: number }> {
-  const childrenOf = buildChildrenIndex(nodes);
+  const childrenOf = groupByParent(nodes);
   const overrides = new Map<string, { x: number; y: number }>();
 
   for (const node of nodes) {
