@@ -79,6 +79,8 @@ interface DiagramStore {
   toggleExpand: (nodeId: NodeId) => void;
   /** Adds nodeIds to expandedNodes without touching any already-expanded node's state (unlike toggleExpand). */
   expandNodes: (nodeIds: NodeId[]) => void;
+  /** Removes nodeIds from expandedNodes — the collapse counterpart to expandNodes, for recursive "collapse all". */
+  collapseNodes: (nodeIds: NodeId[]) => void;
   setHover: (t: HoverTarget | null) => void;
   select: (sel: SelectedElement | null) => void;
   setMultiSelectedNodeIds: (ids: Set<NodeId>) => void;
@@ -261,6 +263,13 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
       set((state) => {
         const next = new Set(state.expandedNodes);
         for (const id of nodeIds) next.add(id);
+        return { expandedNodes: next };
+      }),
+
+    collapseNodes: (nodeIds) =>
+      set((state) => {
+        const next = new Set(state.expandedNodes);
+        for (const id of nodeIds) next.delete(id);
         return { expandedNodes: next };
       }),
 

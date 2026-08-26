@@ -256,7 +256,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
               {colorBar}
               <div className="flex min-w-0 flex-1 items-center gap-1.5 px-2.5 py-1.5">
                 <button
-                  className="graph-node__chevron cursor-pointer border-none bg-transparent p-0 px-0.5 text-[11px] leading-none"
+                  className="graph-node__chevron -m-1 cursor-pointer rounded border-none bg-transparent p-1 text-sm leading-none hover:bg-black/10"
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleExpand(id);
@@ -292,7 +292,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
           <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2.5 py-1.5" style={accentStyle}>
             {data.renderMode === 'collapsed-group' && (
               <button
-                className="graph-node__chevron cursor-pointer border-none bg-transparent p-0 px-0.5 text-[11px] leading-none"
+                className="graph-node__chevron -m-1 cursor-pointer rounded border-none bg-transparent p-1 text-sm leading-none hover:bg-black/10"
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleExpand(id);

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
 import { useDiagramStore } from '../../store/diagramStore';
 import { wouldCreateCycle } from '../../utils/nodeTree';
@@ -15,6 +16,14 @@ function buildTree(nodes: DiagramNode[]): Map<NodeId | undefined, DiagramNode[]>
   return map;
 }
 
+// rootId's own id plus every descendant's — the set a recursive
+// expand/collapse-all needs to hand to expandNodes/collapseNodes.
+function collectSubtreeIds(tree: Map<NodeId | undefined, DiagramNode[]>, rootId: NodeId): NodeId[] {
+  const ids: NodeId[] = [rootId];
+  for (const child of tree.get(rootId) ?? []) ids.push(...collectSubtreeIds(tree, child.id));
+  return ids;
+}
+
 type DropZone = 'before' | 'after' | 'inside';
 
 export function HierarchyPanel() {
@@ -22,8 +31,10 @@ export function HierarchyPanel() {
   const expandedNodes = useDiagramStore((s) => s.expandedNodes);
   const toggleExpand = useDiagramStore((s) => s.toggleExpand);
   const expandNodes = useDiagramStore((s) => s.expandNodes);
+  const collapseNodes = useDiagramStore((s) => s.collapseNodes);
   const select = useDiagramStore((s) => s.select);
   const moveNode = useDiagramStore((s) => s.moveNode);
+  const duplicateNode = useDiagramStore((s) => s.duplicateNode);
 
   const [dragId, setDragId] = useState<NodeId | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: NodeId; zone: DropZone } | null>(null);
@@ -76,49 +87,73 @@ export function HierarchyPanel() {
     const isDropTarget = dropTarget?.id === node.id;
     return (
       <div key={node.id}>
-        <div
-          style={{ paddingLeft: depth * 14 }}
-          draggable
-          onDragStart={(e) => {
-            e.stopPropagation();
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', node.id);
-            setDragId(node.id);
-          }}
-          onDragOver={(e) => {
-            e.stopPropagation();
-            handleDragOver(e, node);
-          }}
-          onDrop={(e) => {
-            e.stopPropagation();
-            handleDrop(e, node);
-          }}
-          onDragEnd={() => {
-            setDragId(null);
-            setDropTarget(null);
-          }}
-          className={cn(
-            'flex items-center gap-1 border-t-2 border-b-2 border-transparent py-0.5',
-            dragId === node.id && 'opacity-40',
-            isDropTarget && dropTarget.zone === 'before' && 'border-t-primary',
-            isDropTarget && dropTarget.zone === 'after' && 'border-b-primary',
-            isDropTarget && dropTarget.zone === 'inside' && 'rounded bg-accent',
-          )}
-        >
-          {hasChildren ? (
-            <button
-              className="w-[18px] cursor-pointer border-none bg-transparent p-0 text-center"
-              onClick={() => toggleExpand(node.id)}
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div
+              style={{ paddingLeft: depth * 14 }}
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation();
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', node.id);
+                setDragId(node.id);
+              }}
+              onDragOver={(e) => {
+                e.stopPropagation();
+                handleDragOver(e, node);
+              }}
+              onDrop={(e) => {
+                e.stopPropagation();
+                handleDrop(e, node);
+              }}
+              onDragEnd={() => {
+                setDragId(null);
+                setDropTarget(null);
+              }}
+              className={cn(
+                'flex items-center gap-1 border-t-2 border-b-2 border-transparent py-0.5',
+                dragId === node.id && 'opacity-40',
+                isDropTarget && dropTarget.zone === 'before' && 'border-t-primary',
+                isDropTarget && dropTarget.zone === 'after' && 'border-b-primary',
+                isDropTarget && dropTarget.zone === 'inside' && 'rounded bg-accent',
+              )}
             >
-              {expandedNodes.has(node.id) ? '▾' : '▸'}
-            </button>
-          ) : (
-            <span className="inline-block w-[18px]" />
-          )}
-          <span className="cursor-pointer hover:underline" onClick={() => select({ kind: 'node', id: node.id })}>
-            {node.label}
-          </span>
-        </div>
+              {hasChildren ? (
+                <button
+                  className="w-[18px] cursor-pointer border-none bg-transparent p-0 text-center"
+                  onClick={() => toggleExpand(node.id)}
+                >
+                  {expandedNodes.has(node.id) ? '▾' : '▸'}
+                </button>
+              ) : (
+                <span className="inline-block w-[18px]" />
+              )}
+              <span className="cursor-pointer hover:underline" onClick={() => select({ kind: 'node', id: node.id })}>
+                {node.label}
+              </span>
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem
+              onClick={() => {
+                const newId = duplicateNode(node.id);
+                if (newId) select({ kind: 'node', id: newId });
+              }}
+            >
+              Duplicate
+            </ContextMenuItem>
+            {hasChildren && (
+              <>
+                <ContextMenuItem onClick={() => expandNodes(collectSubtreeIds(tree, node.id))}>
+                  Expand all
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => collapseNodes(collectSubtreeIds(tree, node.id))}>
+                  Collapse all
+                </ContextMenuItem>
+              </>
+            )}
+          </ContextMenuContent>
+        </ContextMenu>
         {hasChildren && expandedNodes.has(node.id) && children.map((c) => renderNode(c, depth + 1))}
       </div>
     );
