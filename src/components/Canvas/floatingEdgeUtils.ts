@@ -1,4 +1,5 @@
 import { Position, type InternalNode } from '@xyflow/react';
+import type { CompassSide } from '../../types/diagram';
 
 export interface Rect {
   x: number;
@@ -50,7 +51,7 @@ export function getRectIntersection(rect: Rect, other: Rect): { x: number; y: nu
 // renders (see GraphNode.tsx's `handles` array), so this is the same point
 // React Flow itself resolves sourceX/sourceY/targetX/targetY to for a
 // fixed-anchor (curvy) edge.
-export function getHandlePoint(rect: Rect, handle: 'top' | 'right' | 'bottom' | 'left'): { x: number; y: number } {
+export function getHandlePoint(rect: Rect, handle: CompassSide): { x: number; y: number } {
   switch (handle) {
     case 'top':
       return { x: rect.x + rect.width / 2, y: rect.y };

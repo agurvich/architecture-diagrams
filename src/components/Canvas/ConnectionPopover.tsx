@@ -1,10 +1,11 @@
 import { useId, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import type { EdgeSetId, NodeId } from '../../types/diagram';
+import type { CompassSide, EdgeSetId, NodeId } from '../../types/diagram';
 import { useDiagramStore } from '../../store/diagramStore';
 import { actionEdgeIdFromAnchor, isAnchorId } from '../../engine/actorAnchor';
+import { EdgeSetRow } from '../shared/EdgeSetRow';
+import { clampToViewport } from '../../utils/clampToViewport';
 
 const POPOVER_WIDTH = 220;
 const POPOVER_HEIGHT = 220;
@@ -16,8 +17,8 @@ export interface PendingConnection {
   screenX: number;
   screenY: number;
   /** The compass side of each node actually dragged from/to, so the confirmed edge remembers its anchor instead of falling back to floating geometry. */
-  sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
-  targetHandle?: 'top' | 'right' | 'bottom' | 'left';
+  sourceHandle?: CompassSide;
+  targetHandle?: CompassSide;
 }
 
 interface Props {
@@ -44,14 +45,10 @@ export function ConnectionPopover({ pending, onDone }: Props) {
   const triggerActorLabel = triggerTarget?.actorId ? nodes.find((n) => n.id === triggerTarget.actorId)?.label : undefined;
   const actorNodes = nodes.filter((n) => n.isActor);
 
-  const clampedPosition = useMemo(() => {
-    const maxLeft = window.innerWidth - POPOVER_WIDTH - VIEWPORT_MARGIN;
-    const maxTop = window.innerHeight - POPOVER_HEIGHT - VIEWPORT_MARGIN;
-    return {
-      left: Math.min(pending.screenX, Math.max(maxLeft, VIEWPORT_MARGIN)),
-      top: Math.min(pending.screenY, Math.max(maxTop, VIEWPORT_MARGIN)),
-    };
-  }, [pending.screenX, pending.screenY]);
+  const clampedPosition = useMemo(
+    () => clampToViewport(pending.screenX, pending.screenY, POPOVER_WIDTH, POPOVER_HEIGHT, VIEWPORT_MARGIN),
+    [pending.screenX, pending.screenY],
+  );
 
   const toggleSet = (id: EdgeSetId) => {
     setSelectedSets((prev) => {
@@ -109,18 +106,16 @@ export function ConnectionPopover({ pending, onDone }: Props) {
         </div>
       )}
       <div className="flex flex-col gap-1">
-        {edgeSets.map((s) => {
-          const inputId = `${idPrefix}-${s.id}`;
-          return (
-            <div key={s.id} className="flex items-center gap-1.5 text-xs">
-              <Checkbox id={inputId} checked={selectedSets.has(s.id)} onCheckedChange={() => toggleSet(s.id)} />
-              <span className="inline-block h-[9px] w-[9px] rounded-sm" style={{ background: s.color }} />
-              <Label htmlFor={inputId} className="cursor-pointer font-normal">
-                {s.name}
-              </Label>
-            </div>
-          );
-        })}
+        {edgeSets.map((s) => (
+          <EdgeSetRow
+            key={s.id}
+            set={s}
+            checked={selectedSets.has(s.id)}
+            onToggle={() => toggleSet(s.id)}
+            inputId={`${idPrefix}-${s.id}`}
+            compact
+          />
+        ))}
       </div>
       <div className="flex justify-end gap-1.5">
         <Button size="sm" variant="outline" onClick={onDone}>

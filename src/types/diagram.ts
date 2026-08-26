@@ -3,6 +3,9 @@ export type EdgeId = string;
 export type EdgeSetId = string;
 export type FrameId = string;
 
+/** A node's four handle positions, matching every GraphNode's compass Handle set (see GraphNode.tsx's HANDLE_POSITIONS). */
+export type CompassSide = 'top' | 'right' | 'bottom' | 'left';
+
 export interface DiagramNode {
   id: NodeId;
   label: string;
@@ -47,8 +50,8 @@ export interface DiagramEdge {
    * for edges with no remembered anchor (e.g. imported JSON), which fall
    * back to floating geometry.
    */
-  sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
-  targetHandle?: 'top' | 'right' | 'bottom' | 'left';
+  sourceHandle?: CompassSide;
+  targetHandle?: CompassSide;
   /**
    * The actor (a node with isActor: true) responsible for this action —
    * independent of sourceId/targetId, since the actor performing an

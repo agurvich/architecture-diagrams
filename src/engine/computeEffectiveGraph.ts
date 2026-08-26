@@ -1,4 +1,4 @@
-import type { Diagram, EdgeId, EdgeSetId, NodeId } from '../types/diagram';
+import type { CompassSide, Diagram, EdgeId, EdgeSetId, NodeId } from '../types/diagram';
 import type { EffectiveEdge, EffectiveGraph, EffectiveNode } from '../types/effectiveGraph';
 import type { HoverTarget } from '../types/viewState';
 import { buildAncestryIndex, getDescendants, hasChildren, isAncestor, resolveNodeColor, resolveVisibleAncestor } from './ancestry';
@@ -66,8 +66,8 @@ export function computeEffectiveGraph(
     originalEdgeIds: EdgeId[];
     labels: string[];
     seenLabels: Set<string>;
-    sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
-    targetHandle?: 'top' | 'right' | 'bottom' | 'left';
+    sourceHandle?: CompassSide;
+    targetHandle?: CompassSide;
     actorId?: NodeId;
     /** True once a second raw edge (or one with a substituted endpoint) has joined — the remembered handle/actor is no longer unambiguous. */
     handleAmbiguous: boolean;

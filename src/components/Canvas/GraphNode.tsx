@@ -15,7 +15,7 @@ import { useDiagramStore } from '../../store/diagramStore';
 import { actionEdgeIdFromAnchor } from '../../engine/actorAnchor';
 import { DEFAULT_AUTO_LAYOUT_GAP } from '../../engine/containerLayout';
 import { getIconComponent } from '../../icons/registry';
-import { guessIconKey } from '../../icons/iconMatcher';
+import { resolveNodeIcon } from '../../icons/iconMatcher';
 
 export type GraphNodeType = Node<EffectiveNode, 'graphNode'>;
 
@@ -100,13 +100,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
     // color" still reads as visually distinct from "has a color".
     background: data.color ? `color-mix(in oklch, ${data.color}, white 88%)` : undefined,
   };
-  // Three states: a pinned icon key always wins; a pinned `null` means no
-  // icon at all; `undefined` (the default) guesses live from the label and
-  // metadata values, the way LoopIconMatcher.swift's `resolvedIcon` does —
-  // computed at render time rather than stored, so renaming a node updates
-  // its icon automatically unless the user has pinned one explicitly.
-  const resolvedIconKey =
-    data.icon === null ? null : (data.icon ?? guessIconKey(data.label, Object.values(data.metadata)));
+  const resolvedIconKey = resolveNodeIcon(data.icon, data.label, data.metadata);
   const NodeIcon = resolvedIconKey ? getIconComponent(resolvedIconKey) : undefined;
   // The color bar itself always renders (this is what used to be a thin
   // border-left accent — widened and given the icon a home, rather than

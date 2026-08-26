@@ -9,6 +9,7 @@ import { ICON_OPTIONS, getIconComponent } from '../../../icons/registry';
 import { guessIconKey } from '../../../icons/iconMatcher';
 import { DEFAULT_AUTO_LAYOUT_GAP } from '../../../engine/containerLayout';
 import { wouldCreateCycle } from '../../../utils/nodeTree';
+import { PanelHeader } from '../../shared/PanelHeader';
 
 const DEFAULT_COLOR = '#98a2b3';
 
@@ -66,12 +67,7 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
 
   return (
     <div className="properties-panel flex flex-col gap-2.5 rounded-lg border bg-card p-2.5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Node</h3>
-        <button className="cursor-pointer rounded border-none bg-transparent px-1.5 py-0.5 hover:bg-accent" onClick={() => select(null)}>
-          ✕
-        </button>
-      </div>
+      <PanelHeader title="Node" onClose={() => select(null)} />
 
       <div className="flex flex-col gap-1">
         <Label htmlFor={`${idPrefix}-label`}>Label</Label>

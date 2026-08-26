@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { guessIconKey } from './iconMatcher';
+import { guessIconKey, resolveNodeIcon } from './iconMatcher';
 import { getIconComponent } from './registry';
 
 describe('guessIconKey', () => {
@@ -53,5 +53,23 @@ describe('guessIconKey', () => {
       const key = guessIconKey(s);
       expect(getIconComponent(key)).toBeDefined();
     }
+  });
+});
+
+describe('resolveNodeIcon', () => {
+  it('a pinned icon key always wins, regardless of what would be guessed', () => {
+    expect(resolveNodeIcon('fire', 'Primary Database', {})).toBe('fire');
+  });
+
+  it('a pinned null means no icon at all', () => {
+    expect(resolveNodeIcon(null, 'Primary Database', {})).toBeNull();
+  });
+
+  it('undefined (unset) guesses live from the label', () => {
+    expect(resolveNodeIcon(undefined, 'Primary Database', {})).toBe('database');
+  });
+
+  it('undefined falls through to metadata values when the label has no match', () => {
+    expect(resolveNodeIcon(undefined, 'Widget', { kind: 'Redis Cache' })).toBe('fire');
   });
 });

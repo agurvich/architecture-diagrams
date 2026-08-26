@@ -32,7 +32,8 @@ import {
   topoSort,
 } from '../../engine/containerLayout';
 import { getFloatingEdgeParams, getHandlePoint, getRectIntersection } from './floatingEdgeUtils';
-import { guessIconKey } from '../../icons/iconMatcher';
+import { resolveNodeIcon } from '../../icons/iconMatcher';
+import type { CompassSide } from '../../types/diagram';
 import type { EffectiveNode } from '../../types/effectiveGraph';
 import { GraphNode, type GraphNodeType } from './GraphNode';
 import { GraphEdge, type GraphEdgeType } from './GraphEdge';
@@ -268,8 +269,7 @@ export function DiagramCanvas() {
         midX = (si.x + ti.x) / 2;
         midY = (si.y + ti.y) / 2;
       }
-      const resolvedIconKey =
-        actor.icon === null ? null : (actor.icon ?? guessIconKey(actor.label, Object.values(actor.metadata)));
+      const resolvedIconKey = resolveNodeIcon(actor.icon, actor.label, actor.metadata);
 
       const data: EffectiveNode = {
         id: anchorIdFor(e.originalEdgeIds[0]),
@@ -469,8 +469,8 @@ export function DiagramCanvas() {
         // Position's string values ('top'/'right'/'bottom'/'left') already
         // match our handle-id convention, so the exact side dragged
         // from/to carries straight through to the new edge.
-        sourceHandle: connectionState.fromPosition as 'top' | 'right' | 'bottom' | 'left' | undefined,
-        targetHandle: connectionState.toPosition as 'top' | 'right' | 'bottom' | 'left' | undefined,
+        sourceHandle: connectionState.fromPosition as CompassSide | undefined,
+        targetHandle: connectionState.toPosition as CompassSide | undefined,
       });
     },
     [setHover],
@@ -507,8 +507,8 @@ export function DiagramCanvas() {
       updateEdge(rawEdgeId, {
         sourceId: newConnection.source,
         targetId: newConnection.target,
-        sourceHandle: (newConnection.sourceHandle ?? undefined) as 'top' | 'right' | 'bottom' | 'left' | undefined,
-        targetHandle: (newConnection.targetHandle ?? undefined) as 'top' | 'right' | 'bottom' | 'left' | undefined,
+        sourceHandle: (newConnection.sourceHandle ?? undefined) as CompassSide | undefined,
+        targetHandle: (newConnection.targetHandle ?? undefined) as CompassSide | undefined,
       });
     },
     [updateEdge],

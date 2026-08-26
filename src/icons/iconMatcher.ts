@@ -56,3 +56,19 @@ export function guessIconKey(name: string, extraFields: string[] = []): string {
   }
   return FALLBACK_ICON_KEY;
 }
+
+/**
+ * The three-state icon rule shared by every place that renders a node's
+ * icon: a pinned key always wins; a pinned `null` means no icon at all;
+ * `undefined` (the default) guesses live from the label and metadata
+ * values via guessIconKey, so renaming a node updates its icon
+ * automatically unless the user has pinned one explicitly.
+ */
+export function resolveNodeIcon(
+  icon: string | null | undefined,
+  label: string,
+  metadata: Record<string, string>,
+): string | null {
+  if (icon === null) return null;
+  return icon ?? guessIconKey(label, Object.values(metadata));
+}

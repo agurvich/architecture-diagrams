@@ -1,10 +1,9 @@
 import { useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useDiagramStore } from '../../store/diagramStore';
+import { EdgeSetRow } from '../shared/EdgeSetRow';
 
 const PALETTE = ['#4f8ff7', '#f7924f', '#38b06a', '#c05fd6', '#e0475a', '#2fb6c4'];
 
@@ -32,20 +31,17 @@ export function EdgeSetTogglePanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2.5 px-2.5">
-        <ul className="flex flex-col gap-1.5">
-          {edgeSets.map((s) => {
-            const inputId = `${idPrefix}-${s.id}`;
-            return (
-              <li key={s.id} className="flex items-center gap-2">
-                <Checkbox id={inputId} checked={activeSets.has(s.id)} onCheckedChange={() => toggleEdgeSet(s.id)} />
-                <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: s.color }} />
-                <Label htmlFor={inputId} className="cursor-pointer font-normal">
-                  {s.name}
-                </Label>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="flex flex-col gap-1.5">
+          {edgeSets.map((s) => (
+            <EdgeSetRow
+              key={s.id}
+              set={s}
+              checked={activeSets.has(s.id)}
+              onToggle={() => toggleEdgeSet(s.id)}
+              inputId={`${idPrefix}-${s.id}`}
+            />
+          ))}
+        </div>
         <div className="flex gap-1.5">
           <Input
             className="min-w-0 flex-1"

@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import type { Diagram, DiagramEdge, DiagramNode, EdgeId, EdgeSet, EdgeSetId, Frame, FrameId, NodeId } from '../types/diagram';
+import type { CompassSide, Diagram, DiagramEdge, DiagramNode, EdgeId, EdgeSet, EdgeSetId, Frame, FrameId, NodeId } from '../types/diagram';
 import type { HoverTarget, SelectedElement } from '../types/viewState';
 import { seedDiagram } from '../data/seedDiagram';
 import { DEFAULT_COLOR_PALETTE } from '../lib/colorPalette';
 import { makeId } from '../utils/id';
+import { patchById } from '../utils/patchById';
 import {
   InvalidDiagramError,
   exportDiagramJSON,
@@ -135,8 +136,8 @@ interface DiagramStore {
     sourceId: NodeId,
     targetId: NodeId,
     sets: EdgeSetId[],
-    sourceHandle?: 'top' | 'right' | 'bottom' | 'left',
-    targetHandle?: 'top' | 'right' | 'bottom' | 'left',
+    sourceHandle?: CompassSide,
+    targetHandle?: CompassSide,
     actorId?: NodeId,
   ) => EdgeId;
   updateEdge: (id: EdgeId, patch: Partial<DiagramEdge>) => void;
@@ -364,7 +365,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     updateNode: (id, patch) =>
       persistAndSet(set, (diagram) => ({
         ...diagram,
-        nodes: diagram.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)),
+        nodes: patchById(diagram.nodes, id, patch),
       })),
 
     deleteNode: (id) => {
@@ -484,7 +485,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     updateEdge: (id, patch) =>
       persistAndSet(set, (diagram) => ({
         ...diagram,
-        edges: diagram.edges.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+        edges: patchById(diagram.edges, id, patch),
       })),
 
     // Deleting an action edge cascades to any trigger edge pointing at its
@@ -520,7 +521,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     updateEdgeSet: (id, patch) =>
       persistAndSet(set, (diagram) => ({
         ...diagram,
-        edgeSets: diagram.edgeSets.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+        edgeSets: patchById(diagram.edgeSets, id, patch),
       })),
 
     saveFrame: (name, notes) => {
@@ -548,7 +549,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     updateFrame: (id, patch) =>
       persistAndSet(set, (diagram) => ({
         ...diagram,
-        frames: diagram.frames.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+        frames: patchById(diagram.frames, id, patch),
       })),
 
     deleteFrame: (id) =>

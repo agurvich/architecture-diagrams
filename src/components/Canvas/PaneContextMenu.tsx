@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { clampToViewport } from '../../utils/clampToViewport';
 
 const MENU_WIDTH = 160;
 const MENU_HEIGHT = 40;
@@ -34,8 +35,7 @@ export function PaneContextMenu({ screenX, screenY, onAddNode, onClose }: Props)
     };
   }, [onClose]);
 
-  const left = Math.min(screenX, Math.max(window.innerWidth - MENU_WIDTH - VIEWPORT_MARGIN, VIEWPORT_MARGIN));
-  const top = Math.min(screenY, Math.max(window.innerHeight - MENU_HEIGHT - VIEWPORT_MARGIN, VIEWPORT_MARGIN));
+  const { left, top } = clampToViewport(screenX, screenY, MENU_WIDTH, MENU_HEIGHT, VIEWPORT_MARGIN);
 
   return (
     <div

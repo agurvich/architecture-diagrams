@@ -2,29 +2,17 @@ import { useId, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Minus, Spline } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useDiagramStore } from '../../../store/diagramStore';
 import { computeEffectiveGraph } from '../../../engine/computeEffectiveGraph';
+import { buildAncestryIndex, getAncestorChain } from '../../../engine/ancestry';
 import { getFloatingEdgeParams } from '../../Canvas/floatingEdgeUtils';
 import { isAnchorId } from '../../../engine/actorAnchor';
-import type { DiagramNode, EdgeId, NodeId } from '../../../types/diagram';
-
-/** Every strict ancestor of nodeId, nearest first — walking parentId up to the root. */
-function ancestorChain(nodes: DiagramNode[], nodeId: NodeId): NodeId[] {
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const chain: NodeId[] = [];
-  let current = byId.get(nodeId)?.parentId;
-  const seen = new Set<NodeId>();
-  while (current && !seen.has(current)) {
-    chain.push(current);
-    seen.add(current);
-    current = byId.get(current)?.parentId;
-  }
-  return chain;
-}
+import { EdgeSetRow } from '../../shared/EdgeSetRow';
+import { PanelHeader } from '../../shared/PanelHeader';
+import type { EdgeId, NodeId } from '../../../types/diagram';
 
 export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: string }) {
   const diagram = useDiagramStore((s) => s.diagram);
@@ -41,7 +29,14 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
   // endpoints and the canvas, then selects it directly — the actionable
   // version of "expand nodes until this resolves to a single edge".
   const revealRawEdge = (raw: { sourceId: NodeId; targetId: NodeId }) => {
-    expandNodes([...ancestorChain(diagram.nodes, raw.sourceId), ...ancestorChain(diagram.nodes, raw.targetId)]);
+    const index = buildAncestryIndex(diagram);
+    // getAncestorChain is root-first and includes the node itself as its
+    // last entry — drop that last entry, since expandNodes should only
+    // ever get *strict* ancestors (the endpoint itself isn't necessarily
+    // a container, and if it later becomes one it shouldn't already read
+    // as expanded from a click that never actually toggled it).
+    const strictAncestors = (nodeId: NodeId) => getAncestorChain(index, nodeId).slice(0, -1);
+    expandNodes([...strictAncestors(raw.sourceId), ...strictAncestors(raw.targetId)]);
     select({ kind: 'edge', id: `merged:${raw.sourceId}=>${raw.targetId}` });
   };
 
@@ -58,14 +53,7 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
   if (effEdge.count > 1) {
     return (
       <div className="properties-panel flex flex-col gap-2.5 rounded-lg border bg-card p-2.5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Merged edge ({effEdge.count})
-          </h3>
-          <button className="cursor-pointer rounded border-none bg-transparent px-1.5 py-0.5 hover:bg-accent" onClick={() => select(null)}>
-            ✕
-          </button>
-        </div>
+        <PanelHeader title={`Merged edge (${effEdge.count})`} onClose={() => select(null)} />
         <p className="m-0 text-xs text-muted-foreground">
           {nodeLabel(effEdge.visibleSourceId)} → {nodeLabel(effEdge.visibleTargetId)} represents {effEdge.count}{' '}
           underlying relationships. Click one below to expand and select it directly.
@@ -126,30 +114,22 @@ export function EdgePropertiesPanel({ effectiveEdgeId }: { effectiveEdgeId: stri
 
   return (
     <div className="properties-panel flex flex-col gap-2.5 rounded-lg border bg-card p-2.5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Edge</h3>
-        <button className="cursor-pointer rounded border-none bg-transparent px-1.5 py-0.5 hover:bg-accent" onClick={() => select(null)}>
-          ✕
-        </button>
-      </div>
+      <PanelHeader title="Edge" onClose={() => select(null)} />
       <p className="m-0 text-xs text-muted-foreground">
         {nodeLabel(rawEdge.sourceId)} → {nodeLabel(rawEdge.targetId)}
       </p>
 
       <div className="flex flex-col gap-1">
         <span className="text-xs text-muted-foreground">Sets</span>
-        {diagram.edgeSets.map((s) => {
-          const inputId = `${idPrefix}-set-${s.id}`;
-          return (
-            <div key={s.id} className="flex items-center gap-2">
-              <Checkbox id={inputId} checked={rawEdge.sets.includes(s.id)} onCheckedChange={() => toggleSet(s.id)} />
-              <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: s.color }} />
-              <Label htmlFor={inputId} className="cursor-pointer font-normal">
-                {s.name}
-              </Label>
-            </div>
-          );
-        })}
+        {diagram.edgeSets.map((s) => (
+          <EdgeSetRow
+            key={s.id}
+            set={s}
+            checked={rawEdge.sets.includes(s.id)}
+            onToggle={() => toggleSet(s.id)}
+            inputId={`${idPrefix}-set-${s.id}`}
+          />
+        ))}
       </div>
 
       {!isTrigger && actorNodes.length > 0 && (

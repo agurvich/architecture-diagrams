@@ -1,4 +1,4 @@
-import type { EdgeId, EdgeSetId, NodeId } from './diagram';
+import type { CompassSide, EdgeId, EdgeSetId, NodeId } from './diagram';
 
 export type RenderMode = 'leaf' | 'collapsed-group' | 'expanded-container' | 'actor-anchor';
 
@@ -47,8 +47,8 @@ export interface EffectiveEdge {
    * for a merged edge (count > 1), meaning "use floating (dynamic) edge
    * geometry".
    */
-  sourceHandle?: 'top' | 'right' | 'bottom' | 'left';
-  targetHandle?: 'top' | 'right' | 'bottom' | 'left';
+  sourceHandle?: CompassSide;
+  targetHandle?: CompassSide;
   /**
    * The actor attributed to this action, carried through under the same
    * condition as sourceHandle/targetHandle: exactly one raw edge merged

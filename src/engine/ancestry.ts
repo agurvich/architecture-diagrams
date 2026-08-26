@@ -25,7 +25,8 @@ export function hasChildren(index: AncestryIndex, nodeId: NodeId): boolean {
   return (index.childrenOf.get(nodeId)?.length ?? 0) > 0;
 }
 
-function getAncestorChain(index: AncestryIndex, nodeId: NodeId): NodeId[] {
+/** Every ancestor of nodeId plus nodeId itself, root-first: [root, ..., nodeId]. */
+export function getAncestorChain(index: AncestryIndex, nodeId: NodeId): NodeId[] {
   const chain: NodeId[] = [nodeId];
   let current = nodeId;
   const seen = new Set<NodeId>([nodeId]);
