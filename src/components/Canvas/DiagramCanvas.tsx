@@ -19,7 +19,16 @@ import { useDiagramStore } from '../../store/diagramStore';
 import { computeEffectiveGraph } from '../../engine/computeEffectiveGraph';
 import { buildAncestryIndex, isAncestor } from '../../engine/ancestry';
 import { anchorIdFor } from '../../engine/actorAnchor';
-import { ANCHOR_SIZE, LEAF_SIZE, computeAutoLayoutPositions, computeContainerSizes, topoSort } from '../../engine/containerLayout';
+import {
+  ANCHOR_SIZE,
+  CONTAINER_HEADER_HEIGHT,
+  CONTAINER_PADDING,
+  LEAF_SIZE,
+  computeAutoLayoutPositions,
+  computeContainerSizes,
+  topoSort,
+} from '../../engine/containerLayout';
+import { getFloatingEdgeParams } from './floatingEdgeUtils';
 import { guessIconKey } from '../../icons/iconMatcher';
 import type { EffectiveNode } from '../../types/effectiveGraph';
 import { GraphNode, type GraphNodeType } from './GraphNode';
@@ -34,6 +43,7 @@ export function DiagramCanvas() {
   const diagram = useDiagramStore((s) => s.diagram);
   const activeSets = useDiagramStore((s) => s.activeSets);
   const expandedNodes = useDiagramStore((s) => s.expandedNodes);
+  const expandNodes = useDiagramStore((s) => s.expandNodes);
   const hoverTarget = useDiagramStore((s) => s.hoverTarget);
   const currentFrameId = useDiagramStore((s) => s.currentFrameId);
   const editingHighlightsForFrameId = useDiagramStore((s) => s.editingHighlightsForFrameId);
@@ -44,6 +54,8 @@ export function DiagramCanvas() {
   const select = useDiagramStore((s) => s.select);
   const multiSelectedNodeIds = useDiagramStore((s) => s.multiSelectedNodeIds);
   const setMultiSelectedNodeIds = useDiagramStore((s) => s.setMultiSelectedNodeIds);
+  const multiSelectedEdgeIds = useDiagramStore((s) => s.multiSelectedEdgeIds);
+  const setMultiSelectedEdgeIds = useDiagramStore((s) => s.setMultiSelectedEdgeIds);
   const updateNode = useDiagramStore((s) => s.updateNode);
   const addNode = useDiagramStore((s) => s.addNode);
   const deleteNode = useDiagramStore((s) => s.deleteNode);
@@ -159,7 +171,7 @@ export function DiagramCanvas() {
           sourceHandle: e.sourceHandle,
           targetHandle: e.targetHandle,
           data: e,
-          selected: selected?.kind === 'edge' && selected.id === e.id,
+          selected: multiSelectedEdgeIds.has(e.id) || (selected?.kind === 'edge' && selected.id === e.id),
           // Draggable-to-reassign whenever it resolves to exactly one raw
           // edge — a collapsed ancestor standing in for the real endpoint
           // is a real node with its own handles, so there's always
@@ -169,7 +181,7 @@ export function DiagramCanvas() {
         };
         return edge;
       }),
-    [effectiveGraph.visibleEdges],
+    [effectiveGraph.visibleEdges, multiSelectedEdgeIds, selected],
   );
 
   // Every unambiguous action edge (count === 1, actorId set) gets a small
@@ -407,8 +419,9 @@ export function DiagramCanvas() {
     select(null);
     setHover(null);
     setMultiSelectedNodeIds(new Set());
+    setMultiSelectedEdgeIds(new Set());
     setPaneMenu(null);
-  }, [select, setHover, setMultiSelectedNodeIds]);
+  }, [select, setHover, setMultiSelectedNodeIds, setMultiSelectedEdgeIds]);
 
   // React Flow only calls this for a right-click on empty canvas — clicks
   // on a node/edge go to their own onNodeContextMenu/onEdgeContextMenu
@@ -430,15 +443,108 @@ export function DiagramCanvas() {
     setPaneMenu(null);
   }, [paneMenu, screenToFlowPosition, addNode, select]);
 
-  // Marquee (shift-drag) box-select reports its result here — this is the
-  // other half of feeding `selected` back into rfNodes above. Without
-  // capturing it, the selection rectangle draws but nothing is ever
-  // recorded as selected.
-  const onSelectionChange: OnSelectionChangeFunc = useCallback(
-    ({ nodes }) => {
-      setMultiSelectedNodeIds(new Set(nodes.map((n) => n.id)));
+  // Figma's "wrap selection in frame": a new container appears around the
+  // exact current bounding box of the selection (nothing moves visually),
+  // and every selected node reparents into it, keeping its own absolute
+  // position unchanged — only the coordinate space it's expressed in
+  // shifts, from whatever ancestor it had before to the new container.
+  // The new container's own parent is the selection's one shared parent,
+  // or the root if the selection spans more than one (mixed-depth
+  // selections all promote to a single new top-level frame together).
+  const handleWrapInContainer = useCallback(() => {
+    const ids = [...multiSelectedNodeIds];
+    if (ids.length < 2) return;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const id of ids) {
+      const abs = absolutePositions.get(id);
+      const size = sizes.get(id);
+      if (!abs || !size) continue;
+      minX = Math.min(minX, abs.x);
+      minY = Math.min(minY, abs.y);
+      maxX = Math.max(maxX, abs.x + size.width);
+      maxY = Math.max(maxY, abs.y + size.height);
+    }
+    if (!Number.isFinite(minX)) return;
+
+    const parentIds = new Set(ids.map((id) => diagram.nodes.find((n) => n.id === id)?.parentId));
+    const newParentId = parentIds.size === 1 ? [...parentIds][0] : undefined;
+    const newParentAbs = (newParentId && absolutePositions.get(newParentId)) || { x: 0, y: 0 };
+    const containerAbs = { x: minX - CONTAINER_PADDING, y: minY - CONTAINER_HEADER_HEIGHT };
+
+    const containerId = addNode({
+      label: 'New container',
+      parentId: newParentId,
+      position: { x: containerAbs.x - newParentAbs.x, y: containerAbs.y - newParentAbs.y },
+      metadata: {},
+    });
+
+    for (const id of ids) {
+      const abs = absolutePositions.get(id);
+      if (!abs) continue;
+      updateNode(id, { parentId: containerId, position: { x: abs.x - containerAbs.x, y: abs.y - containerAbs.y } });
+    }
+
+    if (newParentId && !expandedNodes.has(newParentId)) expandNodes([newParentId, containerId]);
+    else expandNodes([containerId]);
+    setMultiSelectedNodeIds(new Set());
+    select({ kind: 'node', id: containerId });
+  }, [multiSelectedNodeIds, absolutePositions, sizes, diagram.nodes, addNode, updateNode, expandedNodes, expandNodes, setMultiSelectedNodeIds, select]);
+
+  // Applies the same fixed-vs-floating anchor logic EdgePropertiesPanel
+  // uses for one edge (see its toggleAnchor) to every selected edge at
+  // once — a deterministic "make them all curvy" / "make them all
+  // floating" rather than a per-edge toggle, since a mixed starting state
+  // would otherwise make "toggle" produce a confusing, no-longer-uniform
+  // result. Silently skips any selected edge that's still merged (count >
+  // 1) — same "expand to edit" constraint as everywhere else.
+  const handleBulkAnchor = useCallback(
+    (makeCurvy: boolean) => {
+      for (const edgeId of multiSelectedEdgeIds) {
+        const effEdge = effectiveGraph.visibleEdges.find((e) => e.id === edgeId);
+        if (!effEdge || effEdge.count !== 1) continue;
+        const rawEdgeId = effEdge.originalEdgeIds[0];
+        if (!makeCurvy) {
+          updateEdge(rawEdgeId, { sourceHandle: undefined, targetHandle: undefined });
+          continue;
+        }
+        const sourceInternal = getInternalNode(effEdge.visibleSourceId);
+        const targetInternal = getInternalNode(effEdge.visibleTargetId);
+        if (!sourceInternal || !targetInternal) continue;
+        const { sourcePos, targetPos } = getFloatingEdgeParams(sourceInternal, targetInternal);
+        updateEdge(rawEdgeId, { sourceHandle: sourcePos, targetHandle: targetPos });
+      }
     },
-    [setMultiSelectedNodeIds],
+    [multiSelectedEdgeIds, effectiveGraph.visibleEdges, updateEdge, getInternalNode],
+  );
+
+  const handleBulkDeleteNodes = useCallback(() => {
+    for (const id of multiSelectedNodeIds) deleteNode(id);
+    setMultiSelectedNodeIds(new Set());
+  }, [multiSelectedNodeIds, deleteNode, setMultiSelectedNodeIds]);
+
+  const handleBulkDeleteEdges = useCallback(() => {
+    for (const edgeId of multiSelectedEdgeIds) {
+      const effEdge = effectiveGraph.visibleEdges.find((e) => e.id === edgeId);
+      if (effEdge && effEdge.count === 1) deleteEdge(effEdge.originalEdgeIds[0]);
+    }
+    setMultiSelectedEdgeIds(new Set());
+  }, [multiSelectedEdgeIds, effectiveGraph.visibleEdges, deleteEdge, setMultiSelectedEdgeIds]);
+
+  // Marquee (shift-drag) box-select reports its result here — this is the
+  // other half of feeding `selected` back into rfNodes/rfEdges above.
+  // Without capturing it, the selection rectangle draws but nothing is
+  // ever recorded as selected. A box can cover both nodes and edges at
+  // once, so both halves of RF's own report get captured, not just nodes.
+  const onSelectionChange: OnSelectionChangeFunc = useCallback(
+    ({ nodes, edges }) => {
+      setMultiSelectedNodeIds(new Set(nodes.map((n) => n.id)));
+      setMultiSelectedEdgeIds(new Set(edges.map((e) => e.id)));
+    },
+    [setMultiSelectedNodeIds, setMultiSelectedEdgeIds],
   );
 
   // React Flow decides this list from its OWN internal selection tracking,
@@ -470,12 +576,13 @@ export function DiagramCanvas() {
 
   const onEdgesDelete = useCallback(
     (edges: GraphEdgeType[]) => {
-      const { selected: currentSelected } = useDiagramStore.getState();
+      const { selected: currentSelected, multiSelectedEdgeIds: currentMulti } = useDiagramStore.getState();
       for (const e of edges) {
         // Same RF-vs-store desync guard as onNodesDelete above, plus the
         // existing constraint that only unambiguous (unmerged) edges can
         // be deleted directly.
-        if (currentSelected?.kind === 'edge' && currentSelected.id === e.id && e.data && e.data.count === 1) {
+        const isSelected = currentMulti.has(e.id) || (currentSelected?.kind === 'edge' && currentSelected.id === e.id);
+        if (isSelected && e.data && e.data.count === 1) {
           deleteEdge(e.data.originalEdgeIds[0]);
         }
       }
@@ -539,6 +646,49 @@ export function DiagramCanvas() {
             onClick={() => setEditingHighlightsForFrame(null)}
           >
             Done
+          </button>
+        </div>
+      )}
+      {!editingFrame && multiSelectedNodeIds.size > 1 && (
+        <div className="pointer-events-none absolute top-2.5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md">
+          <span>{multiSelectedNodeIds.size} nodes selected</span>
+          <button
+            className="pointer-events-auto cursor-pointer rounded-full border-none bg-primary px-2 py-0.5 text-primary-foreground"
+            onClick={handleWrapInContainer}
+          >
+            Wrap in container
+          </button>
+          <button
+            className="pointer-events-auto cursor-pointer rounded-full border-none bg-destructive px-2 py-0.5 text-white"
+            onClick={handleBulkDeleteNodes}
+          >
+            Delete
+          </button>
+        </div>
+      )}
+      {!editingFrame && multiSelectedEdgeIds.size > 1 && (
+        <div
+          className="pointer-events-none absolute left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+          style={{ top: multiSelectedNodeIds.size > 1 ? 44 : 10 }}
+        >
+          <span>{multiSelectedEdgeIds.size} edges selected</span>
+          <button
+            className="pointer-events-auto cursor-pointer rounded-full border-none bg-primary px-2 py-0.5 text-primary-foreground"
+            onClick={() => handleBulkAnchor(true)}
+          >
+            Make curvy
+          </button>
+          <button
+            className="pointer-events-auto cursor-pointer rounded-full border border-input bg-transparent px-2 py-0.5 text-foreground"
+            onClick={() => handleBulkAnchor(false)}
+          >
+            Make floating
+          </button>
+          <button
+            className="pointer-events-auto cursor-pointer rounded-full border-none bg-destructive px-2 py-0.5 text-white"
+            onClick={handleBulkDeleteEdges}
+          >
+            Delete
           </button>
         </div>
       )}

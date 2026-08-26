@@ -41,6 +41,8 @@ interface DiagramStore {
   selected: SelectedElement | null;
   /** Nodes selected via React Flow's own marquee (shift-drag) box-select. */
   multiSelectedNodeIds: Set<NodeId>;
+  /** Effective edge ids selected the same way — a separate set since a marquee box can cover both at once. */
+  multiSelectedEdgeIds: Set<string>;
   currentFrameId: FrameId | null;
   /** Snapshot of the last successfully imported JSON, so resetToImported can return to it even after further edits — null until an import has happened (this session or a previous one, since it's also persisted). */
   lastImportedDiagram: Diagram | null;
@@ -77,6 +79,7 @@ interface DiagramStore {
   setHover: (t: HoverTarget | null) => void;
   select: (sel: SelectedElement | null) => void;
   setMultiSelectedNodeIds: (ids: Set<NodeId>) => void;
+  setMultiSelectedEdgeIds: (ids: Set<string>) => void;
 
   addNode: (partial: Omit<DiagramNode, 'id'>) => NodeId;
   /** Copies a node and its full descendant subtree (not edges) to new ids, offsetting the top-level copy so it doesn't sit exactly on top of the original. */
@@ -153,6 +156,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     hoverTarget: null,
     selected: null,
     multiSelectedNodeIds: new Set(),
+    multiSelectedEdgeIds: new Set(),
     currentFrameId: null,
     editingHighlightsForFrameId: null,
     lastImportedDiagram: loadLastImportedDiagram(),
@@ -173,6 +177,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         hoverTarget: null,
         selected: null,
         multiSelectedNodeIds: new Set(),
+        multiSelectedEdgeIds: new Set(),
         currentFrameId: null,
         editingHighlightsForFrameId: null,
         importError: null,
@@ -191,6 +196,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
           hoverTarget: null,
           selected: null,
           multiSelectedNodeIds: new Set(),
+          multiSelectedEdgeIds: new Set(),
           currentFrameId: null,
           editingHighlightsForFrameId: null,
           lastImportedDiagram: diagram,
@@ -213,6 +219,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         hoverTarget: null,
         selected: null,
         multiSelectedNodeIds: new Set(),
+        multiSelectedEdgeIds: new Set(),
         currentFrameId: null,
         editingHighlightsForFrameId: null,
         importError: null,
@@ -252,8 +259,14 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     // React Flow treats as a selection event too) silently rides along and
     // gets swept up by Delete/Backspace alongside the node you meant to
     // act on.
-    select: (sel) => set({ selected: sel, multiSelectedNodeIds: sel ? new Set() : get().multiSelectedNodeIds }),
+    select: (sel) =>
+      set({
+        selected: sel,
+        multiSelectedNodeIds: sel ? new Set() : get().multiSelectedNodeIds,
+        multiSelectedEdgeIds: sel ? new Set() : get().multiSelectedEdgeIds,
+      }),
     setMultiSelectedNodeIds: (ids) => set({ multiSelectedNodeIds: ids }),
+    setMultiSelectedEdgeIds: (ids) => set({ multiSelectedEdgeIds: ids }),
 
     addNode: (partial) => {
       const id = makeId('node');

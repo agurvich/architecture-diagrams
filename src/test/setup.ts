@@ -11,7 +11,6 @@ class ResizeObserverStub {
   unobserve() {}
   disconnect() {}
 }
-// @ts-expect-error - test-only global stub, not a real ResizeObserver
 globalThis.ResizeObserver ??= ResizeObserverStub;
 
 afterEach(() => {
