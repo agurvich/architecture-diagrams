@@ -5,17 +5,17 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('loads the seeded demo diagram', async ({ page }) => {
-  await expect(page.locator('.toolbar__stats')).toHaveText('12 nodes · 24 edges · 3 lenses');
-  await expect(page.locator('.graph-node', { hasText: 'User' })).toBeVisible();
-  await expect(page.locator('.graph-node', { hasText: 'Canvas' })).toBeVisible();
-  // Canvas starts collapsed, carrying its two children
-  await expect(page.locator('.graph-node', { hasText: 'Canvas' })).toContainText('2 nodes');
+  await expect(page.locator('.toolbar__stats')).toHaveText('29 nodes · 24 edges · 2 lenses');
+  await expect(page.locator('.graph-node', { hasText: 'USASpending.gov' })).toBeVisible();
+  await expect(page.locator('.graph-node', { hasText: 'Acquisition Account' })).toBeVisible();
+  // Everything starts collapsed, carrying its full descendant count.
+  await expect(page.locator('.graph-node', { hasText: 'Acquisition Account' })).toContainText('20 nodes');
 });
 
 test('adding a node creates it, selects it, and supports color/icon/rename', async ({ page }) => {
   await page.getByRole('button', { name: '+ Add node' }).click();
 
-  await expect(page.locator('.toolbar__stats')).toHaveText('13 nodes · 24 edges · 3 lenses');
+  await expect(page.locator('.toolbar__stats')).toHaveText('30 nodes · 24 edges · 2 lenses');
   const newNode = page.locator('.graph-node', { hasText: 'New node' });
   await expect(newNode).toBeVisible();
 
@@ -44,7 +44,7 @@ test('right-clicking empty canvas opens a menu to add a node at that position', 
   await expect(menu).toBeVisible();
   await menu.click();
 
-  await expect(page.locator('.toolbar__stats')).toHaveText('13 nodes · 24 edges · 3 lenses');
+  await expect(page.locator('.toolbar__stats')).toHaveText('30 nodes · 24 edges · 2 lenses');
   const newNode = page.locator('.graph-node', { hasText: 'New node' });
   await expect(newNode).toBeVisible();
 
@@ -59,63 +59,54 @@ test('right-clicking empty canvas opens a menu to add a node at that position', 
 });
 
 test('right-clicking a node opens its own menu, not the empty-canvas one', async ({ page }) => {
-  await page.locator('.graph-node', { hasText: 'User' }).click({ button: 'right' });
+  await page.locator('.graph-node', { hasText: 'USASpending.gov' }).click({ button: 'right' });
 
   await expect(page.getByRole('menuitem', { name: 'Edit properties…' })).toBeVisible();
   await expect(page.getByText('Add node', { exact: true })).toHaveCount(0);
 });
 
-async function totalMergedEdgeCount(page: import('@playwright/test').Page) {
-  const texts = await page.locator('.graph-edge__count-badge').allTextContents();
-  return texts.reduce((sum, t) => sum + Number(t), 0);
-}
-
-test('toggling a lens off reduces merged edge counts without touching raw node/edge totals', async ({ page }) => {
-  // At this diagram's topology every node pair with a Data Flow edge also
-  // carries a Structure edge between the same two nodes, so no line
-  // disappears entirely from just turning Data Flow off — instead each
-  // merged edge's underlying count should drop.
-  const mergedCountBefore = await totalMergedEdgeCount(page);
+test('toggling a lens off reduces the edges actually drawn, and back on restores them', async ({ page }) => {
+  const edgeCountBefore = await page.locator('.react-flow__edge').count();
+  expect(edgeCountBefore).toBeGreaterThan(0);
 
   await page.getByRole('checkbox', { name: 'Data Flow' }).uncheck();
 
-  await expect(page.locator('.toolbar__stats')).toHaveText('12 nodes · 24 edges · 3 lenses'); // raw counts unchanged
-  await expect.poll(() => totalMergedEdgeCount(page)).toBeLessThan(mergedCountBefore);
+  await expect(page.locator('.toolbar__stats')).toHaveText('29 nodes · 24 edges · 2 lenses'); // raw counts unchanged
+  await expect(page.locator('.react-flow__edge')).not.toHaveCount(edgeCountBefore);
 
   await page.getByRole('checkbox', { name: 'Data Flow' }).check();
-  await expect.poll(() => totalMergedEdgeCount(page)).toBe(mergedCountBefore);
+  await expect(page.locator('.react-flow__edge')).toHaveCount(edgeCountBefore);
 });
 
 test('turning off every lens leaves nodes visible with zero edges', async ({ page }) => {
-  await page.getByRole('checkbox', { name: 'Structure' }).uncheck();
+  await page.getByRole('checkbox', { name: 'Control Flow' }).uncheck();
   await page.getByRole('checkbox', { name: 'Data Flow' }).uncheck();
-  await page.getByRole('checkbox', { name: 'Persistence' }).uncheck();
 
   await expect(page.locator('.react-flow__edge')).toHaveCount(0);
-  await expect(page.locator('.graph-node', { hasText: 'User' })).toBeVisible();
+  await expect(page.locator('.graph-node', { hasText: 'USASpending.gov' })).toBeVisible();
 });
 
 test('expanding a collapsed group reveals its children and merged edges split back out', async ({ page }) => {
-  const canvasGroup = page.locator('.graph-node--collapsed-group', { hasText: 'Canvas' });
-  await expect(canvasGroup).toBeVisible();
+  const sourceGroup = page.locator('.graph-node--collapsed-group', { hasText: 'USASpending.gov' });
+  await expect(sourceGroup).toBeVisible();
 
-  await canvasGroup.locator('.graph-node__chevron').click();
+  await sourceGroup.locator('.graph-node__chevron').click();
 
-  await expect(page.locator('.graph-node', { hasText: 'Node Renderer' })).toBeVisible();
-  await expect(page.locator('.graph-node', { hasText: 'Edge Renderer' })).toBeVisible();
-  await expect(page.locator('.graph-node--collapsed-group', { hasText: 'Canvas' })).toHaveCount(0);
+  await expect(page.locator('.graph-node', { hasText: 'list_files' })).toBeVisible();
+  await expect(page.locator('.graph-node', { hasText: 'batch_download' })).toBeVisible();
+  await expect(page.locator('.graph-node--collapsed-group', { hasText: 'USASpending.gov' })).toHaveCount(0);
 });
 
 test('hovering a node highlights its neighbors and dims everything else', async ({ page }) => {
-  const userNode = page.locator('.graph-node', { hasText: 'User' });
-  const toolbarNode = page.locator('.graph-node', { hasText: 'Toolbar' });
-  const storeNode = page.locator('.graph-node', { hasText: 'Diagram Store' });
+  const sourceNode = page.locator('.graph-node', { hasText: 'USASpending.gov' });
+  const processingNode = page.locator('.graph-node', { hasText: 'Acquisition Account' });
+  const ingestNode = page.locator('.graph-node', { hasText: 'Viz Tools Account' });
 
-  await userNode.hover();
+  await sourceNode.hover();
 
-  await expect(userNode).toHaveClass(/graph-node--highlighted/);
-  await expect(toolbarNode).toHaveClass(/graph-node--highlighted/);
-  await expect(storeNode).toHaveClass(/graph-node--dimmed/);
+  await expect(sourceNode).toHaveClass(/graph-node--highlighted/);
+  await expect(processingNode).toHaveClass(/graph-node--highlighted/);
+  await expect(ingestNode).toHaveClass(/graph-node--dimmed/);
 });
 
 test('frame player steps forward and back through the narrated sequence', async ({ page }) => {
@@ -127,20 +118,20 @@ test('frame player steps forward and back through the narrated sequence', async 
   await expect(prev).toBeDisabled();
 
   await next.click();
-  await expect(title).toContainText('1. Component architecture');
+  await expect(title).toContainText('1. Pipeline overview');
   await expect(title).toContainText('1 / 4');
 
   await next.click();
-  await expect(title).toContainText('2. Inside the UI layer');
-  // frame 2 expands Canvas (and Panels) and highlights their children
-  await expect(page.locator('.graph-node', { hasText: 'Node Renderer' })).toBeVisible();
+  await expect(title).toContainText('2. Inside the AV scan');
+  // frame 2 additionally expands the AV Lambda
+  await expect(page.locator('.graph-node').filter({ hasText: /^Scan$/ })).toBeVisible();
 
   await prev.click();
-  await expect(title).toContainText('1. Component architecture');
+  await expect(title).toContainText('1. Pipeline overview');
 });
 
 test('dragging a node tracks the cursor live instead of jumping only on release', async ({ page }) => {
-  const node = page.locator('[data-id="user"]');
+  const node = page.locator('[data-id="source"]');
   const startBox = (await node.boundingBox())!;
   const startCenter = { x: startBox.x + startBox.width / 2, y: startBox.y + startBox.height / 2 };
   const dx = 0;
@@ -174,14 +165,16 @@ test('dragging a node tracks the cursor live instead of jumping only on release'
     .poll(async () => {
       const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
       const diagram = raw ? JSON.parse(raw) : null;
-      return diagram?.nodes.find((n: { id: string }) => n.id === 'user')?.position.y;
+      return diagram?.nodes.find((n: { id: string }) => n.id === 'source')?.position.y;
     })
-    .toBeGreaterThan(dy - 20);
+    .toBeGreaterThan(dy - 20 + 380); // seed's starting y for 'source' is 380
 });
 
 test('dragging from a handle to another node opens the tagging popover and creates an edge', async ({ page }) => {
-  const source = page.locator('[data-id="user"] .react-flow__handle-right');
-  const target = page.locator('[data-id="engine"] .react-flow__handle-left');
+  // 'source' and 'account-ingest' have no existing edge between them at the
+  // top level, so a plain +1 edge-count assertion is unambiguous.
+  const source = page.locator('[data-id="source"] .react-flow__handle-right');
+  const target = page.locator('[data-id="account-ingest"] .react-flow__handle-left');
 
   const edgeCountBefore = await page.locator('.react-flow__edge').count();
 
@@ -206,10 +199,184 @@ test('dragging from a handle to another node opens the tagging popover and creat
   const popover = page.locator('.connection-popover');
   await expect(popover).toBeVisible();
 
-  await popover.getByRole('checkbox', { name: 'Persistence' }).check();
+  await popover.getByRole('checkbox', { name: 'Control Flow' }).check();
   await popover.getByRole('button', { name: 'Add edge' }).click();
 
   await expect(popover).toHaveCount(0);
   await expect(page.locator('.react-flow__edge')).toHaveCount(edgeCountBefore + 1);
-  await expect(page.locator('.toolbar__stats')).toHaveText('12 nodes · 25 edges · 3 lenses');
+  await expect(page.locator('.toolbar__stats')).toHaveText('29 nodes · 25 edges · 2 lenses');
 });
+
+// --- Regression coverage for bugs fixed this session, none of which a
+// jsdom-based component/unit test can exercise: all three depend on a real
+// pointer-drag gesture resolving against real, measured DOM geometry. ---
+
+test('dragging an edge endpoint to a different handle on the SAME node updates it in place, without creating a duplicate', async ({ page }) => {
+  // Expanding just these two reveals cf-watermark-list (read-watermark ->
+  // list-files) as a plain, unmerged (count === 1, reconnectable) control
+  // edge between two real leaf nodes.
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Acquisition Account' }).locator('.graph-node__chevron').click();
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Ingest Step Function' }).locator('.graph-node__chevron').click();
+
+  const edgeCountBefore = await page.locator('.react-flow__edge').count();
+  const sourceHandle = page.locator('[data-id="merged:read-watermark=>list-files"] circle.react-flow__edgeupdater-source');
+  const handleBox = (await sourceHandle.boundingBox())!;
+  const hx = handleBox.x + handleBox.width / 2;
+  const hy = handleBox.y + handleBox.height / 2;
+
+  // Drag the source anchor a short distance sideways — same node, almost
+  // certainly a different resolved handle side — and drop back onto that
+  // same node's own body so the reconnect resolves onto it, not elsewhere.
+  const sourceNodeBox = (await page.locator('[data-id="read-watermark"]').boundingBox())!;
+  const dropX = sourceNodeBox.x + sourceNodeBox.width - 4;
+  const dropY = sourceNodeBox.y + sourceNodeBox.height / 2;
+
+  await page.mouse.move(hx, hy);
+  await page.mouse.down();
+  await page.waitForTimeout(50);
+  await page.mouse.move(dropX, dropY, { steps: 10 });
+  await page.waitForTimeout(50);
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+
+  await expect(page.locator('.react-flow__edge')).toHaveCount(edgeCountBefore);
+});
+
+test('dragging an edge endpoint to a different node reassigns it, without creating a reversed duplicate', async ({ page }) => {
+  // Expanding both accounts reveals a-clean-ingest (clean-bucket ->
+  // ingest-bucket) as a plain, unmerged action edge between two real leaf
+  // buckets.
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Acquisition Account' }).locator('.graph-node__chevron').click();
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Viz Tools Account' }).locator('.graph-node__chevron').click();
+
+  const edgeCountBefore = await page.locator('.react-flow__edge').count();
+  const sourceHandle = page.locator('[data-id="merged:clean-bucket=>ingest-bucket"] circle.react-flow__edgeupdater-source');
+  const handleBox = (await sourceHandle.boundingBox())!;
+  const hx = handleBox.x + handleBox.width / 2;
+  const hy = handleBox.y + handleBox.height / 2;
+
+  // Re-aim this edge's source (currently clean-bucket) onto the Acquisition
+  // Account container itself — its own top-center handle, clear of any
+  // nested child.
+  const dropHandle = page.locator('[data-id="account-processing"] .react-flow__handle-top');
+  const dropBox = (await dropHandle.boundingBox())!;
+  const dropX = dropBox.x + dropBox.width / 2;
+  const dropY = dropBox.y + dropBox.height / 2;
+
+  await page.mouse.move(hx, hy);
+  await page.mouse.down();
+  await page.waitForTimeout(50);
+  await page.mouse.move(dropX, dropY, { steps: 10 });
+  await page.waitForTimeout(50);
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+
+  // No spurious second (and reversed) edge from the same gesture.
+  await expect(page.locator('.react-flow__edge')).toHaveCount(edgeCountBefore);
+
+  await expect
+    .poll(async () => {
+      const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
+      const diagram = raw ? JSON.parse(raw) : null;
+      return diagram?.edges.find((e: { id: string }) => e.id === 'a-clean-ingest')?.sourceId;
+    })
+    .toBe('account-processing');
+});
+
+test('dragging a node inside an auto-layout container does not move unrelated siblings elsewhere in the diagram', async ({ page }) => {
+  // Turn on auto layout for the Step Function container via its own
+  // context menu, then confirm dragging one of its children doesn't
+  // perturb something with no relation to it (the account container
+  // sitting entirely outside this subtree).
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Acquisition Account' }).locator('.graph-node__chevron').click();
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Ingest Step Function' }).locator('.graph-node__chevron').click();
+
+  // Target the container's own collapse/expand chevron specifically — a
+  // real, well-defined element inside the header strip, unlike guessing a
+  // pixel offset that a nested child might occlude depending on zoom.
+  await page.locator('[data-id="step-fn"] .graph-node__chevron').click({ button: 'right' });
+  await page.getByText('Auto layout').hover();
+  await page.getByText('Vertical', { exact: true }).click();
+
+  const unrelatedBefore = (await page.locator('[data-id="account-ingest"]').boundingBox())!;
+
+  const child = page.locator('[data-id="read-watermark"]');
+  const childBox = (await child.boundingBox())!;
+  const start = { x: childBox.x + childBox.width / 2, y: childBox.y + childBox.height / 2 };
+
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.waitForTimeout(50);
+  await page.mouse.move(start.x, start.y + 120, { steps: 10 });
+  await page.waitForTimeout(50);
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+
+  const unrelatedAfter = (await page.locator('[data-id="account-ingest"]').boundingBox())!;
+  expect(Math.abs(unrelatedAfter.x - unrelatedBefore.x)).toBeLessThan(2);
+  expect(Math.abs(unrelatedAfter.y - unrelatedBefore.y)).toBeLessThan(2);
+});
+
+test('marquee-selecting two nodes offers "Wrap in container", which nests both', async ({ page }) => {
+  const source = page.locator('[data-id="source"]');
+  const processing = page.locator('[data-id="account-processing"]');
+  const sourceBox = (await source.boundingBox())!;
+  const processingBox = (await processing.boundingBox())!;
+
+  const minX = Math.min(sourceBox.x, processingBox.x) - 30;
+  const minY = Math.min(sourceBox.y, processingBox.y) - 30;
+  const maxX = Math.max(sourceBox.x + sourceBox.width, processingBox.x + processingBox.width) + 30;
+  const maxY = Math.max(sourceBox.y + sourceBox.height, processingBox.y + processingBox.height) + 30;
+
+  // Shift-drag a marquee box from empty canvas around both nodes.
+  await page.keyboard.down('Shift');
+  await page.mouse.move(minX, minY);
+  await page.mouse.down();
+  await page.mouse.move(maxX, maxY, { steps: 10 });
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+
+  const wrapButton = page.getByRole('button', { name: 'Wrap in container' });
+  await expect(wrapButton).toBeVisible();
+  await wrapButton.click();
+
+  await expect
+    .poll(async () => {
+      const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
+      const diagram = raw ? JSON.parse(raw) : null;
+      const src = diagram?.nodes.find((n: { id: string }) => n.id === 'source');
+      const proc = diagram?.nodes.find((n: { id: string }) => n.id === 'account-processing');
+      return src && proc && src.parentId && src.parentId === proc.parentId ? src.parentId : null;
+    })
+    .not.toBeNull();
+});
+
+test('Run graph layout repositions top-level nodes', async ({ page }) => {
+  // Read straight off the rendered DOM rather than localStorage — on a
+  // fresh load nothing has ever been written back yet (the store only
+  // persists on a mutation), so a pre-interaction localStorage read is
+  // unreliable here in a way it isn't once something has already changed.
+  const ids = ['source', 'account-processing', 'account-ingest'];
+  const boxesBefore = await Promise.all(ids.map((id) => page.locator(`[data-id="${id}"]`).boundingBox()));
+
+  await page.getByRole('button', { name: 'Run graph layout' }).click();
+  await page.waitForTimeout(300);
+
+  const boxesAfter = await Promise.all(ids.map((id) => page.locator(`[data-id="${id}"]`).boundingBox()));
+  expect(boxesAfter).not.toEqual(boxesBefore);
+});
+
+test('Delete removes a selected node', async ({ page }) => {
+  // A fresh, unconnected leaf avoids any cascade-delete ambiguity from
+  // deleting an existing seed node with children/actor-attributed edges —
+  // this test is purely about the Delete key path, not cascade behavior.
+  await page.getByRole('button', { name: '+ Add node' }).click();
+  await expect(page.locator('.toolbar__stats')).toHaveText('30 nodes · 24 edges · 2 lenses');
+  await expect(page.locator('.properties-panel').getByLabel('Label')).toHaveValue('New node');
+
+  await page.keyboard.press('Delete');
+
+  await expect(page.locator('.graph-node', { hasText: 'New node' })).toHaveCount(0);
+  await expect(page.locator('.toolbar__stats')).toHaveText('29 nodes · 24 edges · 2 lenses');
+});
+
