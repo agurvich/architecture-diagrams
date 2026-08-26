@@ -40,6 +40,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   const addNode = useDiagramStore((s) => s.addNode);
   const deleteNode = useDiagramStore((s) => s.deleteNode);
   const duplicateNode = useDiagramStore((s) => s.duplicateNode);
+  const runGraphLayout = useDiagramStore((s) => s.runGraphLayout);
   const diagramNodes = useDiagramStore((s) => s.diagram.nodes);
   const colorPalette = useDiagramStore((s) => s.diagram.colorPalette ?? []);
   // Hover changes recompute the effective graph, replacing every node/edge
@@ -202,6 +203,9 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
             </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
+      )}
+      {data.renderMode === 'expanded-container' && !data.autoLayout && (
+        <ContextMenuItem onClick={() => runGraphLayout(id)}>Run graph layout</ContextMenuItem>
       )}
       <ContextMenuSub>
         <ContextMenuSubTrigger>Set color</ContextMenuSubTrigger>

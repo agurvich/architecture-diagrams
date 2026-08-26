@@ -14,6 +14,9 @@ import {
   saveToLocalStorageDebounced,
 } from './persistence';
 import { anchorIdFor, isAnchorId } from '../engine/actorAnchor';
+import { computeEffectiveGraph } from '../engine/computeEffectiveGraph';
+import { CONTAINER_HEADER_HEIGHT, CONTAINER_PADDING, LEAF_SIZE, computeContainerSizes } from '../engine/containerLayout';
+import { computeGraphLayout } from '../engine/graphLayout';
 
 function cloneSeed(): Diagram {
   return JSON.parse(JSON.stringify(seedDiagram));
@@ -115,6 +118,18 @@ interface DiagramStore {
   moveNode: (nodeId: NodeId, parentId: NodeId | undefined, beforeId: NodeId | undefined) => void;
   /** Appends a color to the accumulating palette (deduped, no-op if already present). */
   addPaletteColor: (color: string) => void;
+  /**
+   * One-shot, crossing-minimizing (elkjs layered) layout over containerId's
+   * direct children (or every top-level node when containerId is null).
+   * Treats each child as an opaque, already-sized box — an expanded
+   * auto-layout grandchild's own internal arrangement is never reached
+   * into, only repositioned as a whole — and only ever rewrites those
+   * children's own positions, never parentId, so nesting can't break.
+   * No-op if containerId itself has autoLayout set: that already owns its
+   * direct children's arrangement, and the two shouldn't fight over the
+   * same positions.
+   */
+  runGraphLayout: (containerId: NodeId | null) => Promise<void>;
 
   addEdge: (
     sourceId: NodeId,
@@ -403,6 +418,59 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         if (palette.includes(color)) return diagram;
         return { ...diagram, colorPalette: [...palette, color] };
       }),
+
+    runGraphLayout: async (containerId) => {
+      const state = get();
+      const container = containerId ? state.diagram.nodes.find((n) => n.id === containerId) : undefined;
+      if (containerId && (!container || container.autoLayout)) return;
+
+      const effectiveGraph = computeEffectiveGraph(state.diagram, {
+        activeSets: state.activeSets,
+        expandedNodes: state.expandedNodes,
+      });
+      const sizes = computeContainerSizes(effectiveGraph.visibleNodes);
+      const children = effectiveGraph.visibleNodes.filter((n) => (n.parentId ?? null) === containerId);
+      if (children.length === 0) return;
+      const childIds = new Set(children.map((n) => n.id));
+      // Only edges fully internal to this level factor into the layout —
+      // an edge reaching outside it has nothing on the other end that's
+      // ours to move, so it can't inform how these boxes should relate.
+      const edges = effectiveGraph.visibleEdges.filter(
+        (e) => e.visibleSourceId !== e.visibleTargetId && childIds.has(e.visibleSourceId) && childIds.has(e.visibleTargetId),
+      );
+
+      const positions = await computeGraphLayout(
+        children.map((n) => ({ id: n.id, size: sizes.get(n.id) ?? LEAF_SIZE })),
+        edges.map((e) => ({ sourceId: e.visibleSourceId, targetId: e.visibleTargetId })),
+      );
+
+      // Anchor the laid-out block: inside a container, flush against its
+      // padded interior (the same convention manual and auto layout both
+      // already use); at the root, wherever this same set of nodes
+      // already sits, so the result settles roughly in place instead of
+      // jumping to an arbitrary spot on the canvas.
+      let offsetX = CONTAINER_PADDING;
+      let offsetY = CONTAINER_HEADER_HEIGHT;
+      if (!containerId) {
+        let minX = Infinity;
+        let minY = Infinity;
+        for (const n of children) {
+          minX = Math.min(minX, n.position.x);
+          minY = Math.min(minY, n.position.y);
+        }
+        offsetX = minX === Infinity ? 0 : minX;
+        offsetY = minY === Infinity ? 0 : minY;
+      }
+
+      persistAndSet(set, (diagram) => ({
+        ...diagram,
+        nodes: diagram.nodes.map((n) => {
+          const pos = positions.get(n.id);
+          if (!pos) return n;
+          return { ...n, position: { x: pos.x + offsetX, y: pos.y + offsetY } };
+        }),
+      }));
+    },
 
     addEdge: (sourceId, targetId, sets, sourceHandle, targetHandle, actorId) => {
       const id = makeId('edge');
