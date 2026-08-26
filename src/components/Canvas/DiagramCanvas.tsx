@@ -3,6 +3,7 @@ import {
   Background,
   ConnectionMode,
   Controls,
+  getBezierPath,
   ReactFlow,
   useReactFlow,
   type Node,
@@ -13,6 +14,7 @@ import {
   type OnNodeDrag,
   type OnReconnect,
   type OnSelectionChangeFunc,
+  type Position,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useDiagramStore } from '../../store/diagramStore';
@@ -28,7 +30,7 @@ import {
   computeContainerSizes,
   topoSort,
 } from '../../engine/containerLayout';
-import { getFloatingEdgeParams } from './floatingEdgeUtils';
+import { getFloatingEdgeParams, getHandlePoint, getRectIntersection } from './floatingEdgeUtils';
 import { guessIconKey } from '../../icons/iconMatcher';
 import type { EffectiveNode } from '../../types/effectiveGraph';
 import { GraphNode, type GraphNodeType } from './GraphNode';
@@ -234,8 +236,35 @@ export function DiagramCanvas() {
       const targetSize = sizes.get(e.visibleTargetId) ?? LEAF_SIZE;
       if (!sourcePos || !targetPos) continue;
 
-      const midX = (sourcePos.x + sourceSize.width / 2 + targetPos.x + targetSize.width / 2) / 2;
-      const midY = (sourcePos.y + sourceSize.height / 2 + targetPos.y + targetSize.height / 2) / 2;
+      const sourceRect = { x: sourcePos.x, y: sourcePos.y, ...sourceSize };
+      const targetRect = { x: targetPos.x, y: targetPos.y, ...targetSize };
+
+      // Mirror GraphEdge.tsx's own path math exactly, so the anchor lands
+      // on the actual visible curve/line instead of a naive center-to-
+      // center average — which for a curvy edge can be far from the bowed
+      // bezier, and even for a floating edge misses the true border-to-
+      // border midpoint.
+      let midX: number;
+      let midY: number;
+      if (e.sourceHandle && e.targetHandle) {
+        const sp = getHandlePoint(sourceRect, e.sourceHandle);
+        const tp = getHandlePoint(targetRect, e.targetHandle);
+        const [, labelX, labelY] = getBezierPath({
+          sourceX: sp.x,
+          sourceY: sp.y,
+          sourcePosition: e.sourceHandle as Position,
+          targetX: tp.x,
+          targetY: tp.y,
+          targetPosition: e.targetHandle as Position,
+        });
+        midX = labelX;
+        midY = labelY;
+      } else {
+        const si = getRectIntersection(sourceRect, targetRect);
+        const ti = getRectIntersection(targetRect, sourceRect);
+        midX = (si.x + ti.x) / 2;
+        midY = (si.y + ti.y) / 2;
+      }
       const resolvedIconKey =
         actor.icon === null ? null : (actor.icon ?? guessIconKey(actor.label, Object.values(actor.metadata)));
 
