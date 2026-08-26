@@ -16,6 +16,7 @@ export function Toolbar() {
   const clearImportError = useDiagramStore((s) => s.clearImportError);
   const addNode = useDiagramStore((s) => s.addNode);
   const select = useDiagramStore((s) => s.select);
+  const runGraphLayout = useDiagramStore((s) => s.runGraphLayout);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { screenToFlowPosition } = useReactFlow();
 
@@ -63,6 +64,14 @@ export function Toolbar() {
       <div className="ml-auto flex gap-2">
         <Button size="sm" onClick={handleAddNode}>
           + Add node
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => runGraphLayout(null)}
+          title="Auto-arrange every top-level node to minimize edge crossings (a container with its own auto layout is left alone — right-click it to run this inside it instead)"
+        >
+          Run graph layout
         </Button>
         <Button size="sm" variant="outline" onClick={handleExport}>
           Export JSON

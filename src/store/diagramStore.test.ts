@@ -235,3 +235,104 @@ describe('diagramStore — toggleMultiSelectedEdge', () => {
     expect([...ids].sort()).toEqual(['e1', 'e2']);
   });
 });
+
+describe('diagramStore — runGraphLayout', () => {
+  beforeEach(() => {
+    useDiagramStore.getState().loadSeed();
+  });
+
+  function setFlatTopLevel() {
+    useDiagramStore.setState((state) => ({
+      diagram: {
+        ...state.diagram,
+        nodes: [
+          { id: 'a', label: 'A', position: { x: 500, y: 500 }, metadata: {} },
+          { id: 'b', label: 'B', position: { x: 900, y: 100 }, metadata: {} },
+          { id: 'c', label: 'C', position: { x: 100, y: 900 }, metadata: {} },
+        ],
+        edges: [
+          { id: 'e1', sourceId: 'a', targetId: 'b', sets: [state.diagram.edgeSets[0].id], metadata: {} },
+          { id: 'e2', sourceId: 'b', targetId: 'c', sets: [state.diagram.edgeSets[0].id], metadata: {} },
+        ],
+      },
+      activeSets: new Set([state.diagram.edgeSets[0].id]),
+      expandedNodes: new Set(),
+    }));
+  }
+
+  it('repositions top-level nodes without touching parentId or node/edge count', async () => {
+    setFlatTopLevel();
+    await useDiagramStore.getState().runGraphLayout(null);
+
+    const diagram = useDiagramStore.getState().diagram;
+    expect(diagram.nodes).toHaveLength(3);
+    expect(diagram.edges).toHaveLength(2);
+    for (const n of diagram.nodes) expect(n.parentId).toBeUndefined();
+    // elk chose *some* new arrangement — not asserting exact coordinates
+    // (that's elk's own algorithm, not ours to pin down), just that this
+    // actually moved something instead of being a no-op.
+    const moved = diagram.nodes.some((n) => n.position.x !== 500 && n.id === 'a');
+    expect(moved || diagram.nodes.find((n) => n.id === 'b')!.position.y !== 100).toBe(true);
+  });
+
+  it('lays out a container’s direct children flush against its padded interior, leaving nesting and other nodes alone', async () => {
+    useDiagramStore.setState((state) => ({
+      diagram: {
+        ...state.diagram,
+        nodes: [
+          { id: 'box', label: 'Box', position: { x: 0, y: 0 }, metadata: {} },
+          { id: 'child1', label: 'Child1', parentId: 'box', position: { x: 999, y: 999 }, metadata: {} },
+          { id: 'child2', label: 'Child2', parentId: 'box', position: { x: -50, y: -50 }, metadata: {} },
+          { id: 'outsider', label: 'Outsider', position: { x: 42, y: 42 }, metadata: {} },
+        ],
+        edges: [{ id: 'e1', sourceId: 'child1', targetId: 'child2', sets: [state.diagram.edgeSets[0].id], metadata: {} }],
+      },
+      activeSets: new Set([state.diagram.edgeSets[0].id]),
+      expandedNodes: new Set(['box']),
+    }));
+
+    await useDiagramStore.getState().runGraphLayout('box');
+
+    const nodes = useDiagramStore.getState().diagram.nodes;
+    expect(nodes.find((n) => n.id === 'child1')!.parentId).toBe('box');
+    expect(nodes.find((n) => n.id === 'child2')!.parentId).toBe('box');
+    // Flush against the container's own padded interior — never negative,
+    // never drifting back out to where they started.
+    for (const id of ['child1', 'child2']) {
+      const pos = nodes.find((n) => n.id === id)!.position;
+      expect(pos.x).toBeGreaterThanOrEqual(20);
+      expect(pos.y).toBeGreaterThanOrEqual(34);
+    }
+    // Nothing outside this container was touched.
+    expect(nodes.find((n) => n.id === 'outsider')!.position).toEqual({ x: 42, y: 42 });
+    expect(nodes.find((n) => n.id === 'box')!.position).toEqual({ x: 0, y: 0 });
+  });
+
+  it('is a no-op on a container that has its own auto layout — that already owns its children’s positions', async () => {
+    useDiagramStore.setState((state) => ({
+      diagram: {
+        ...state.diagram,
+        nodes: [
+          {
+            id: 'box',
+            label: 'Box',
+            position: { x: 0, y: 0 },
+            metadata: {},
+            autoLayout: { direction: 'vertical' as const, gap: 10 },
+          },
+          { id: 'child1', label: 'Child1', parentId: 'box', position: { x: 5, y: 5 }, metadata: {} },
+          { id: 'child2', label: 'Child2', parentId: 'box', position: { x: 7, y: 7 }, metadata: {} },
+        ],
+        edges: [],
+      },
+      activeSets: new Set([state.diagram.edgeSets[0].id]),
+      expandedNodes: new Set(['box']),
+    }));
+
+    await useDiagramStore.getState().runGraphLayout('box');
+
+    const nodes = useDiagramStore.getState().diagram.nodes;
+    expect(nodes.find((n) => n.id === 'child1')!.position).toEqual({ x: 5, y: 5 });
+    expect(nodes.find((n) => n.id === 'child2')!.position).toEqual({ x: 7, y: 7 });
+  });
+});
