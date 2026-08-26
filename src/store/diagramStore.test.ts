@@ -208,3 +208,30 @@ describe('diagramStore — moveNode (hierarchy panel drag-to-reorder/reparent)',
     expect(nodes.filter((n) => n.parentId === parent).map((n) => n.id)).toEqual([outsider, child1]);
   });
 });
+
+describe('diagramStore — toggleMultiSelectedEdge', () => {
+  beforeEach(() => {
+    useDiagramStore.getState().loadSeed();
+  });
+
+  it('adds an edge id not yet present, and clears any single selection', () => {
+    useDiagramStore.getState().select({ kind: 'node', id: 'some-node' });
+    useDiagramStore.getState().toggleMultiSelectedEdge('e1');
+    const state = useDiagramStore.getState();
+    expect(state.multiSelectedEdgeIds.has('e1')).toBe(true);
+    expect(state.selected).toBeNull();
+  });
+
+  it('removes it again on a second toggle', () => {
+    useDiagramStore.getState().toggleMultiSelectedEdge('e1');
+    useDiagramStore.getState().toggleMultiSelectedEdge('e1');
+    expect(useDiagramStore.getState().multiSelectedEdgeIds.has('e1')).toBe(false);
+  });
+
+  it('accumulates several edges independently', () => {
+    useDiagramStore.getState().toggleMultiSelectedEdge('e1');
+    useDiagramStore.getState().toggleMultiSelectedEdge('e2');
+    const ids = useDiagramStore.getState().multiSelectedEdgeIds;
+    expect([...ids].sort()).toEqual(['e1', 'e2']);
+  });
+});

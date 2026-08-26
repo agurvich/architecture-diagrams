@@ -56,6 +56,7 @@ export function DiagramCanvas() {
   const setMultiSelectedNodeIds = useDiagramStore((s) => s.setMultiSelectedNodeIds);
   const multiSelectedEdgeIds = useDiagramStore((s) => s.multiSelectedEdgeIds);
   const setMultiSelectedEdgeIds = useDiagramStore((s) => s.setMultiSelectedEdgeIds);
+  const toggleMultiSelectedEdge = useDiagramStore((s) => s.toggleMultiSelectedEdge);
   const updateNode = useDiagramStore((s) => s.updateNode);
   const addNode = useDiagramStore((s) => s.addNode);
   const deleteNode = useDiagramStore((s) => s.deleteNode);
@@ -405,14 +406,21 @@ export function DiagramCanvas() {
   // toggles every raw edge behind this line's membership in that frame
   // instead (see toggleFrameHighlightIds).
   const onEdgeClick: EdgeMouseHandler<GraphEdgeType> = useCallback(
-    (_event, edge) => {
+    (event, edge) => {
       if (editingHighlightsForFrameId && edge.data) {
         toggleFrameHighlightIds(editingHighlightsForFrameId, edge.data.originalEdgeIds);
         return;
       }
+      // Shift/Cmd/Ctrl-click toggles this edge into the multi-selection
+      // instead of replacing the current selection — the reliable way to
+      // select several edges (see toggleMultiSelectedEdge).
+      if (event.shiftKey || event.metaKey || event.ctrlKey) {
+        toggleMultiSelectedEdge(edge.id);
+        return;
+      }
       select({ kind: 'edge', id: edge.id });
     },
-    [select, editingHighlightsForFrameId, toggleFrameHighlightIds],
+    [select, editingHighlightsForFrameId, toggleFrameHighlightIds, toggleMultiSelectedEdge],
   );
 
   const onPaneClick = useCallback(() => {

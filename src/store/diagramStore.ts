@@ -80,6 +80,15 @@ interface DiagramStore {
   select: (sel: SelectedElement | null) => void;
   setMultiSelectedNodeIds: (ids: Set<NodeId>) => void;
   setMultiSelectedEdgeIds: (ids: Set<string>) => void;
+  /**
+   * Shift/Cmd/Ctrl-click adds or removes one edge from the multi-selection
+   * directly — the reliable path, unlike the marquee: React Flow's own
+   * box-select only ever includes an edge as a side effect of at least
+   * one of its endpoint *nodes* also falling inside the box (see its
+   * commitUserSelectionRect), so a box drawn across edges without
+   * framing an endpoint selects nothing.
+   */
+  toggleMultiSelectedEdge: (id: string) => void;
 
   addNode: (partial: Omit<DiagramNode, 'id'>) => NodeId;
   /** Copies a node and its full descendant subtree (not edges) to new ids, offsetting the top-level copy so it doesn't sit exactly on top of the original. */
@@ -267,6 +276,13 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
       }),
     setMultiSelectedNodeIds: (ids) => set({ multiSelectedNodeIds: ids }),
     setMultiSelectedEdgeIds: (ids) => set({ multiSelectedEdgeIds: ids }),
+    toggleMultiSelectedEdge: (id) =>
+      set((state) => {
+        const next = new Set(state.multiSelectedEdgeIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return { multiSelectedEdgeIds: next, selected: null };
+      }),
 
     addNode: (partial) => {
       const id = makeId('node');

@@ -113,4 +113,11 @@ describe('DiagramCanvas — group-select bulk actions', () => {
     useDiagramStore.getState().setMultiSelectedNodeIds(new Set(['a']));
     expect(screen.queryByRole('button', { name: /wrap in container/i })).toBeNull();
   });
+
+  // React Flow doesn't resolve edge geometry (and so never renders any
+  // <g data-testid="rf__edge-...">) under jsdom — there's no real layout
+  // engine to report handle positions from, even with the ResizeObserver
+  // stub — so shift-click-to-toggle is verified at the store level
+  // (toggleMultiSelectedEdge, in diagramStore.test.ts) and by hand in a
+  // real browser instead of through a rendered edge element here.
 });

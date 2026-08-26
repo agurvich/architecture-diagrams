@@ -42,6 +42,7 @@ export function GraphEdge({
   const select = useDiagramStore((s) => s.select);
   const editingHighlightsForFrameId = useDiagramStore((s) => s.editingHighlightsForFrameId);
   const toggleFrameHighlightIds = useDiagramStore((s) => s.toggleFrameHighlightIds);
+  const toggleMultiSelectedEdge = useDiagramStore((s) => s.toggleMultiSelectedEdge);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
   const reverseEdge = useDiagramStore((s) => s.reverseEdge);
   // See GraphNode.tsx: hover-driven recomputation of the effective graph
@@ -118,6 +119,16 @@ export function GraphEdge({
                 e.stopPropagation();
                 if (editingHighlightsForFrameId) {
                   toggleFrameHighlightIds(editingHighlightsForFrameId, data.originalEdgeIds);
+                  return;
+                }
+                // Shift/Cmd/Ctrl-click toggles this edge into the multi-
+                // selection instead of replacing the selection — the
+                // reliable way to select several edges, since React
+                // Flow's own marquee only ever includes an edge as a
+                // side effect of one of its endpoint *nodes* also
+                // falling inside the drawn box.
+                if (e.shiftKey || e.metaKey || e.ctrlKey) {
+                  toggleMultiSelectedEdge(id);
                   return;
                 }
                 select({ kind: 'edge', id });
