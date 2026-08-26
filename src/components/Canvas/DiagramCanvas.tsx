@@ -11,6 +11,7 @@ import {
   type EdgeMouseHandler,
   type NodeMouseHandler,
   type OnConnectEnd,
+  type OnConnectStart,
   type OnNodeDrag,
   type OnReconnect,
   type OnSelectionChangeFunc,
@@ -320,8 +321,16 @@ export function DiagramCanvas() {
   const onNodeDragStart: OnNodeDrag<GraphNodeType> = useCallback(
     (_event, node) => {
       setDraggedNodeId(node.id);
+      // hoverFrozen (see GraphNode/GraphEdge) suppresses hover changes for
+      // the entire drag so recomputing the effective graph mid-drag can't
+      // corrupt React Flow's hit-testing — but that means whatever was
+      // hovered the instant before the drag started would otherwise stay
+      // dimming everything else on screen for the drag's whole duration,
+      // surviving even past drop until the pointer happens to leave every
+      // nested node and cross empty canvas. Clear it up front instead.
+      setHover(null);
     },
-    [setDraggedNodeId],
+    [setDraggedNodeId, setHover],
   );
 
   // We render nodes as a fully controlled prop (no onNodesChange wired up),
@@ -413,8 +422,21 @@ export function DiagramCanvas() {
     [updateNode, setDraggedNodeId, getInternalNode, diagram, effectiveGraph.visibleNodes, sizes],
   );
 
+  // Same hoverFrozen staleness as onNodeDragStart above, for a connection
+  // drag (e.g. dragging out a new trigger edge from an actor anchor's
+  // handle) instead of a node drag.
+  const onConnectStart: OnConnectStart = useCallback(() => {
+    setHover(null);
+  }, [setHover]);
+
   const onConnectEnd: OnConnectEnd = useCallback(
     (event, connectionState) => {
+      // Mirrors onConnectStart: hoverFrozen only lifts once this handler
+      // returns, so whatever the pointer is sitting over right now hasn't
+      // had a chance to set hover for itself yet — without this, dimming
+      // stays stuck at whatever was hovered before the drag began until
+      // the next real mouseenter/leave.
+      setHover(null);
       if (!connectionState.isValid || !connectionState.fromNode || !connectionState.toNode) return;
       const sourceId = connectionState.fromNode.id;
       const targetId = connectionState.toNode.id;
@@ -432,7 +454,7 @@ export function DiagramCanvas() {
         targetHandle: connectionState.toPosition as 'top' | 'right' | 'bottom' | 'left' | undefined,
       });
     },
-    [],
+    [setHover],
   );
 
   // Dragging an existing (reconnectable, see rfEdges above) edge's own
@@ -695,6 +717,7 @@ export function DiagramCanvas() {
         onNodeDragStart={onNodeDragStart}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
         onReconnect={onReconnect}
         onNodeClick={onNodeClick}
