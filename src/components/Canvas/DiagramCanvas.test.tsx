@@ -295,3 +295,50 @@ describe('DiagramCanvas — Delete/Backspace key', () => {
     expect(useDiagramStore.getState().diagram.edges).toEqual(before.edges);
   });
 });
+
+describe('DiagramCanvas — actor-anchor color inheritance', () => {
+  it('an actor with no color of its own renders its anchor in its inherited (ancestor) color, not the default', async () => {
+    useDiagramStore.getState().loadSeed();
+    useDiagramStore.setState((state) => ({
+      diagram: {
+        ...state.diagram,
+        nodes: [
+          { id: 'src', label: 'Src', position: { x: 0, y: 0 }, metadata: {} },
+          { id: 'tgt', label: 'Tgt', position: { x: 300, y: 0 }, metadata: {} },
+          // The actor has no color of its own — it should inherit '#ff00ff'
+          // from its parent container rather than falling back to the
+          // component's own DEFAULT_ACCENT gray.
+          { id: 'box', label: 'Box', position: { x: 0, y: 300 }, metadata: {}, color: '#ff00ff' },
+          { id: 'actor', label: 'Actor', parentId: 'box', position: { x: 0, y: 0 }, metadata: {}, isActor: true },
+        ],
+        edges: [
+          {
+            id: 'e1',
+            sourceId: 'src',
+            targetId: 'tgt',
+            sets: [state.diagram.edgeSets[0].id],
+            metadata: {},
+            actorId: 'actor',
+          },
+        ],
+      },
+      activeSets: new Set([state.diagram.edgeSets[0].id]),
+      expandedNodes: new Set(),
+      selected: null,
+      multiSelectedNodeIds: new Set(),
+      multiSelectedEdgeIds: new Set(),
+    }));
+
+    render(
+      <ReactFlowProvider>
+        <DiagramCanvas />
+      </ReactFlowProvider>,
+    );
+
+    await waitFor(() => {
+      const anchor = document.querySelector('.graph-node__anchor') as HTMLElement | null;
+      expect(anchor).not.toBeNull();
+      expect(anchor!.style.background).toBe('rgb(255, 0, 255)');
+    });
+  });
+});

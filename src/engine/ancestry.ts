@@ -1,4 +1,4 @@
-import type { Diagram, NodeId } from '../types/diagram';
+import type { Diagram, DiagramNode, NodeId } from '../types/diagram';
 
 export interface AncestryIndex {
   parentOf: Map<NodeId, NodeId>;
@@ -82,6 +82,27 @@ export function isAncestor(index: AncestryIndex, ancestorId: NodeId, nodeId: Nod
     current = index.parentOf.get(current);
   }
   return false;
+}
+
+/**
+ * A node with no color of its own inherits the nearest ancestor's, the way
+ * it would in CSS — an explicit color set anywhere in the chain "wins" for
+ * everything below it until overridden again. Shared by computeEffectiveGraph
+ * (every visible node's own color) and anywhere else that needs a specific
+ * node's effective color without going through the full effective-graph
+ * computation — e.g. an actor-anchor's color, since the actor node driving
+ * it isn't necessarily itself currently visible/expanded.
+ */
+export function resolveNodeColor(
+  nodeId: NodeId,
+  nodeById: Map<NodeId, DiagramNode>,
+  cache: Map<NodeId, string | undefined> = new Map(),
+): string | undefined {
+  if (cache.has(nodeId)) return cache.get(nodeId);
+  const node = nodeById.get(nodeId);
+  const color = node?.color ?? (node?.parentId ? resolveNodeColor(node.parentId, nodeById, cache) : undefined);
+  cache.set(nodeId, color);
+  return color;
 }
 
 /** All descendant node ids of nodeId (not including nodeId itself). */

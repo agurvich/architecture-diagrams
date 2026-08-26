@@ -20,7 +20,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useDiagramStore } from '../../store/diagramStore';
 import { computeEffectiveGraph } from '../../engine/computeEffectiveGraph';
-import { buildAncestryIndex, isAncestor } from '../../engine/ancestry';
+import { buildAncestryIndex, isAncestor, resolveNodeColor } from '../../engine/ancestry';
 import { anchorIdFor } from '../../engine/actorAnchor';
 import {
   ANCHOR_SIZE,
@@ -227,6 +227,8 @@ export function DiagramCanvas() {
   // live from the current render, never stored.
   const actorAnchors: GraphNodeType[] = useMemo(() => {
     const anchors: GraphNodeType[] = [];
+    const nodeById = new Map(diagram.nodes.map((n) => [n.id, n]));
+    const colorCache = new Map<string, string | undefined>();
     for (const e of effectiveGraph.visibleEdges) {
       if (e.count !== 1 || !e.actorId) continue;
       const actor = diagram.nodes.find((n) => n.id === e.actorId);
@@ -275,7 +277,11 @@ export function DiagramCanvas() {
         renderMode: 'actor-anchor',
         position: { x: midX - ANCHOR_SIZE / 2, y: midY - ANCHOR_SIZE / 2 },
         metadata: {},
-        color: actor.color,
+        // Not actor.color directly — the actor itself may be inheriting
+        // its color from an ancestor container (see resolveNodeColor),
+        // and it isn't necessarily currently visible/expanded as itself
+        // for that inheritance to already be reflected anywhere else.
+        color: resolveNodeColor(actor.id, nodeById, colorCache),
         icon: resolvedIconKey,
         linkedEdgeId: e.id,
         dimmed: e.dimmed,

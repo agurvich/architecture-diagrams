@@ -1,7 +1,7 @@
 import type { Diagram, EdgeId, EdgeSetId, NodeId } from '../types/diagram';
 import type { EffectiveEdge, EffectiveGraph, EffectiveNode } from '../types/effectiveGraph';
 import type { HoverTarget } from '../types/viewState';
-import { buildAncestryIndex, getDescendants, hasChildren, isAncestor, resolveVisibleAncestor } from './ancestry';
+import { buildAncestryIndex, getDescendants, hasChildren, isAncestor, resolveNodeColor, resolveVisibleAncestor } from './ancestry';
 
 export interface ComputeEffectiveGraphOptions {
   activeSets: Set<EdgeSetId>;
@@ -27,16 +27,6 @@ export function computeEffectiveGraph(
 
   const nodeById = new Map(diagram.nodes.map((n) => [n.id, n]));
   const colorCache = new Map<NodeId, string | undefined>();
-  // A node with no color of its own inherits the nearest ancestor's,
-  // the way it would in CSS — an explicit color set anywhere in the
-  // chain "wins" for everything below it until overridden again.
-  const resolveColor = (nodeId: NodeId): string | undefined => {
-    if (colorCache.has(nodeId)) return colorCache.get(nodeId);
-    const node = nodeById.get(nodeId);
-    const color = node?.color ?? (node?.parentId ? resolveColor(node.parentId) : undefined);
-    colorCache.set(nodeId, color);
-    return color;
-  };
 
   // --- Visible nodes ---
   const visibleNodes: EffectiveNode[] = [];
@@ -61,7 +51,7 @@ export function computeEffectiveGraph(
       // is always safe to use directly here.
       parentId: node.parentId,
       metadata: node.metadata,
-      color: resolveColor(node.id),
+      color: resolveNodeColor(node.id, nodeById, colorCache),
       icon: node.icon,
       isActor: node.isActor,
       autoLayout: node.autoLayout,
