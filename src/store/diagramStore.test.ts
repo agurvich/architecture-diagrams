@@ -336,3 +336,235 @@ describe('diagramStore — runGraphLayout', () => {
     expect(nodes.find((n) => n.id === 'child2')!.position).toEqual({ x: 7, y: 7 });
   });
 });
+
+describe('diagramStore — edge and edge-set CRUD', () => {
+  beforeEach(() => {
+    useDiagramStore.getState().loadSeed();
+  });
+
+  it('updateEdge patches fields on the matching raw edge only', () => {
+    const { addNode, addEdge, updateEdge } = useDiagramStore.getState();
+    const a = addNode({ label: 'A', position: { x: 0, y: 0 }, metadata: {} });
+    const b = addNode({ label: 'B', position: { x: 0, y: 0 }, metadata: {} });
+    const setId = useDiagramStore.getState().diagram.edgeSets[0].id;
+    const edgeId = addEdge(a, b, [setId]);
+
+    updateEdge(edgeId, { metadata: { note: 'reviewed' } });
+
+    const edge = useDiagramStore.getState().diagram.edges.find((e) => e.id === edgeId)!;
+    expect(edge.metadata).toEqual({ note: 'reviewed' });
+    expect(edge.sourceId).toBe(a);
+  });
+
+  it('addEdgeSet appends a new set and activates it immediately', () => {
+    const before = useDiagramStore.getState().diagram.edgeSets.length;
+    const id = useDiagramStore.getState().addEdgeSet('Deploy Flow', '#123456');
+
+    const state = useDiagramStore.getState();
+    expect(state.diagram.edgeSets).toHaveLength(before + 1);
+    expect(state.diagram.edgeSets.at(-1)).toEqual({ id, name: 'Deploy Flow', color: '#123456' });
+    expect(state.activeSets.has(id)).toBe(true);
+  });
+
+  it('updateEdgeSet patches name/color on the matching set only', () => {
+    const setId = useDiagramStore.getState().diagram.edgeSets[0].id;
+    const otherSet = useDiagramStore.getState().diagram.edgeSets[1];
+
+    useDiagramStore.getState().updateEdgeSet(setId, { name: 'Renamed', color: '#abcdef' });
+
+    const sets = useDiagramStore.getState().diagram.edgeSets;
+    expect(sets.find((s) => s.id === setId)).toEqual({ id: setId, name: 'Renamed', color: '#abcdef' });
+    expect(sets.find((s) => s.id === otherSet.id)).toEqual(otherSet);
+  });
+});
+
+describe('diagramStore — duplicateNode, setNodeParent, expandNodes/collapseNodes', () => {
+  beforeEach(() => {
+    useDiagramStore.getState().loadSeed();
+  });
+
+  it('duplicateNode copies a childless node with an offset position and a " copy" label suffix', () => {
+    const { addNode, duplicateNode } = useDiagramStore.getState();
+    const original = addNode({ label: 'Bucket', position: { x: 100, y: 100 }, metadata: { env: 'prod' } });
+
+    const copyId = duplicateNode(original)!;
+
+    const nodes = useDiagramStore.getState().diagram.nodes;
+    const copy = nodes.find((n) => n.id === copyId)!;
+    expect(copy.id).not.toBe(original);
+    expect(copy.label).toBe('Bucket copy');
+    expect(copy.position).toEqual({ x: 160, y: 160 });
+    expect(copy.metadata).toEqual({ env: 'prod' });
+  });
+
+  it('duplicateNode copies a container and its whole descendant subtree, remapping parentId within the copy', () => {
+    const { addNode, duplicateNode } = useDiagramStore.getState();
+    const container = addNode({ label: 'Box', position: { x: 0, y: 0 }, metadata: {} });
+    const child = addNode({ label: 'Child', parentId: container, position: { x: 10, y: 10 }, metadata: {} });
+
+    const containerCopyId = duplicateNode(container)!;
+
+    const nodes = useDiagramStore.getState().diagram.nodes;
+    const childCopies = nodes.filter((n) => n.parentId === containerCopyId);
+    expect(childCopies).toHaveLength(1);
+    expect(childCopies[0].label).toBe('Child');
+    expect(childCopies[0].id).not.toBe(child);
+    // Descendant copies keep their own relative position untouched — only
+    // the top-level copy gets the offset.
+    expect(childCopies[0].position).toEqual({ x: 10, y: 10 });
+  });
+
+  it('duplicateNode returns null for a nonexistent source id', () => {
+    expect(useDiagramStore.getState().duplicateNode('does-not-exist')).toBeNull();
+  });
+
+  it('setNodeParent reparents a node without touching its position or siblings', () => {
+    const { addNode, setNodeParent } = useDiagramStore.getState();
+    const parent = addNode({ label: 'Parent', position: { x: 0, y: 0 }, metadata: {} });
+    const child = addNode({ label: 'Child', position: { x: 5, y: 5 }, metadata: {} });
+
+    setNodeParent(child, parent);
+
+    const node = useDiagramStore.getState().diagram.nodes.find((n) => n.id === child)!;
+    expect(node.parentId).toBe(parent);
+    expect(node.position).toEqual({ x: 5, y: 5 });
+  });
+
+  it('setNodeParent(id, undefined) un-parents a node back to top level', () => {
+    const { addNode, setNodeParent } = useDiagramStore.getState();
+    const parent = addNode({ label: 'Parent', position: { x: 0, y: 0 }, metadata: {} });
+    const child = addNode({ label: 'Child', parentId: parent, position: { x: 5, y: 5 }, metadata: {} });
+
+    setNodeParent(child, undefined);
+
+    expect(useDiagramStore.getState().diagram.nodes.find((n) => n.id === child)!.parentId).toBeUndefined();
+  });
+
+  it('expandNodes adds ids without touching already-expanded ones; collapseNodes removes them', () => {
+    const { expandNodes, collapseNodes, toggleExpand } = useDiagramStore.getState();
+    toggleExpand('already-expanded');
+
+    expandNodes(['a', 'b', 'c']);
+    expect([...useDiagramStore.getState().expandedNodes].sort()).toEqual(['a', 'already-expanded', 'b', 'c'].sort());
+
+    collapseNodes(['a', 'c']);
+    const remaining = useDiagramStore.getState().expandedNodes;
+    expect(remaining.has('a')).toBe(false);
+    expect(remaining.has('c')).toBe(false);
+    expect(remaining.has('b')).toBe(true);
+    expect(remaining.has('already-expanded')).toBe(true);
+  });
+});
+
+describe('diagramStore — loadExample and exportJSON', () => {
+  const customDiagram = {
+    nodes: [{ id: 'only-node', label: 'Only Node', position: { x: 0, y: 0 }, metadata: {} }],
+    edges: [],
+    edgeSets: [{ id: 'set-a', name: 'Set A', color: '#000000' }],
+    frames: [],
+  };
+
+  it('loadExample replaces the diagram and resets view state (selection, expand, frame) to defaults', () => {
+    useDiagramStore.getState().loadSeed();
+    useDiagramStore.getState().select({ kind: 'node', id: 'node_w8QcqZ1P' });
+    useDiagramStore.getState().toggleExpand('some-node');
+
+    useDiagramStore.getState().loadExample(customDiagram);
+
+    const state = useDiagramStore.getState();
+    expect(state.diagram.nodes.map((n) => n.id)).toEqual(['only-node']);
+    expect(state.activeSets.has('set-a')).toBe(true);
+    expect(state.selected).toBeNull();
+    expect(state.expandedNodes.size).toBe(0);
+    expect(state.currentFrameId).toBeNull();
+  });
+
+  it('loadExample clones its input — mutating the store afterward does not touch the passed-in object', () => {
+    useDiagramStore.getState().loadExample(customDiagram);
+    useDiagramStore.getState().updateNode('only-node', { label: 'Renamed' });
+    expect(customDiagram.nodes[0].label).toBe('Only Node');
+  });
+
+  it('exportJSON round-trips through importJSON to reproduce the same diagram shape', () => {
+    useDiagramStore.getState().loadExample(customDiagram);
+    const json = useDiagramStore.getState().exportJSON();
+
+    useDiagramStore.getState().loadSeed();
+    expect(useDiagramStore.getState().diagram.nodes.map((n) => n.id)).not.toEqual(['only-node']);
+
+    useDiagramStore.getState().importJSON(json);
+    expect(useDiagramStore.getState().diagram.nodes.map((n) => n.id)).toEqual(['only-node']);
+  });
+});
+
+describe('diagramStore — frame playback (gotoFrame/nextFrame/prevFrame) and deleteFrame/reorderFrames', () => {
+  function threeFrames() {
+    useDiagramStore.getState().loadSeed();
+    // The seed diagram ships with its own frames — clear them first so
+    // this helper's 3 frames are the only ones in play.
+    useDiagramStore.setState((s) => ({ diagram: { ...s.diagram, frames: [] } }));
+    const setId = useDiagramStore.getState().diagram.edgeSets[0].id;
+    const { saveFrame, updateFrame } = useDiagramStore.getState();
+    const f1 = saveFrame('Frame 1', '');
+    updateFrame(f1, { activeSets: [setId] });
+    const f2 = saveFrame('Frame 2', '');
+    updateFrame(f2, { activeSets: [] });
+    const f3 = saveFrame('Frame 3', '');
+    updateFrame(f3, { activeSets: [setId] });
+    return { f1, f2, f3, setId };
+  }
+
+  it('nextFrame steps from no active frame to the first frame, then advances, and stops at the last', () => {
+    const { f1, f2, f3 } = threeFrames();
+    // saveFrame itself left currentFrameId on the last-saved frame — reset
+    // to "nothing playing" to test nextFrame's own starting-point logic.
+    useDiagramStore.setState({ currentFrameId: null });
+
+    useDiagramStore.getState().nextFrame();
+    expect(useDiagramStore.getState().currentFrameId).toBe(f1);
+    useDiagramStore.getState().nextFrame();
+    expect(useDiagramStore.getState().currentFrameId).toBe(f2);
+    useDiagramStore.getState().nextFrame();
+    expect(useDiagramStore.getState().currentFrameId).toBe(f3);
+    useDiagramStore.getState().nextFrame();
+    expect(useDiagramStore.getState().currentFrameId).toBe(f3);
+  });
+
+  it('prevFrame steps backward and stops at the first frame', () => {
+    const { f1, f2, f3 } = threeFrames();
+    useDiagramStore.getState().gotoFrame(f3);
+
+    useDiagramStore.getState().prevFrame();
+    expect(useDiagramStore.getState().currentFrameId).toBe(f2);
+    useDiagramStore.getState().prevFrame();
+    expect(useDiagramStore.getState().currentFrameId).toBe(f1);
+    useDiagramStore.getState().prevFrame();
+    expect(useDiagramStore.getState().currentFrameId).toBe(f1);
+  });
+
+  it('gotoFrame applies that frame\'s own activeSets/expandedNodes snapshot', () => {
+    const { f2, setId } = threeFrames();
+    useDiagramStore.getState().gotoFrame(f2);
+    expect(useDiagramStore.getState().activeSets.has(setId)).toBe(false);
+  });
+
+  it('nextFrame/prevFrame are no-ops when there are no frames at all', () => {
+    useDiagramStore.getState().loadSeed();
+    useDiagramStore.setState((s) => ({ diagram: { ...s.diagram, frames: [] }, currentFrameId: null }));
+    useDiagramStore.getState().nextFrame();
+    useDiagramStore.getState().prevFrame();
+    expect(useDiagramStore.getState().currentFrameId).toBeNull();
+  });
+
+  it('deleteFrame removes just that frame, leaving the others and their order intact', () => {
+    const { f1, f2, f3 } = threeFrames();
+    useDiagramStore.getState().deleteFrame(f2);
+    expect(useDiagramStore.getState().diagram.frames.map((f) => f.id)).toEqual([f1, f3]);
+  });
+
+  it('reorderFrames moves a frame from one index to another', () => {
+    const { f1, f2, f3 } = threeFrames();
+    useDiagramStore.getState().reorderFrames(0, 2);
+    expect(useDiagramStore.getState().diagram.frames.map((f) => f.id)).toEqual([f2, f3, f1]);
+  });
+});

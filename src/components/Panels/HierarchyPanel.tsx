@@ -24,7 +24,18 @@ function collectSubtreeIds(tree: Map<NodeId | undefined, DiagramNode[]>, rootId:
   return ids;
 }
 
-type DropZone = 'before' | 'after' | 'inside';
+export type DropZone = 'before' | 'after' | 'inside';
+
+// Top quarter of a row = reorder before it, bottom quarter = after it, the
+// middle half = nest inside it as a new child — same three-way split
+// Figma's own layers panel uses. Pure so it's unit-testable independent of
+// real row geometry (jsdom has no layout engine, so getBoundingClientRect
+// on an actual rendered row is meaningless in a component test).
+export function dropZoneFromOffset(offsetY: number, rowHeight: number): DropZone {
+  if (offsetY < rowHeight * 0.25) return 'before';
+  if (offsetY > rowHeight * 0.75) return 'after';
+  return 'inside';
+}
 
 export function HierarchyPanel() {
   const nodes = useDiagramStore((s) => s.diagram.nodes);
@@ -42,17 +53,14 @@ export function HierarchyPanel() {
   const tree = buildTree(nodes);
   const roots = tree.get(undefined) ?? [];
 
-  // Top quarter of a row = reorder before it, bottom quarter = after it,
-  // the middle half = nest inside it as a new child — same three-way split
-  // Figma's own layers panel uses. Only sets a drop target when the
-  // resulting parent (the row's own parent for before/after, the row
-  // itself for inside) wouldn't create a cycle, so an invalid drop is
-  // simply not offered rather than accepted and rejected later.
+  // Only sets a drop target when the resulting parent (the row's own
+  // parent for before/after, the row itself for inside) wouldn't create a
+  // cycle, so an invalid drop is simply not offered rather than accepted
+  // and rejected later.
   const handleDragOver = (e: React.DragEvent, node: DiagramNode) => {
     if (!dragId || dragId === node.id) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const offset = e.clientY - rect.top;
-    const zone: DropZone = offset < rect.height * 0.25 ? 'before' : offset > rect.height * 0.75 ? 'after' : 'inside';
+    const zone = dropZoneFromOffset(e.clientY - rect.top, rect.height);
     const resultingParentId = zone === 'inside' ? node.id : node.parentId;
     if (resultingParentId && wouldCreateCycle(nodes, dragId, resultingParentId)) return;
     e.preventDefault();

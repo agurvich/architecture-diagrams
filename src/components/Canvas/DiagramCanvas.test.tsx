@@ -224,3 +224,74 @@ describe('DiagramCanvas — auto-layout position persistence', () => {
     });
   });
 });
+
+describe('DiagramCanvas — Delete/Backspace key', () => {
+  // Unlike marquee drag (see the comment at the top of this file), the
+  // Delete/Backspace key path doesn't need any real pointer geometry —
+  // React Flow's deleteKeyCode listener just reads which of its own
+  // nodes/edges are currently `selected: true` (driven straight off our
+  // multiSelectedNodeIds/selected, see rfNodes/rfEdges above) and fires a
+  // real keyboard event, so this exercises the actual code path instead
+  // of calling the handler directly.
+  beforeEach(() => {
+    setFlatDiagram();
+  });
+
+  it('deletes every multi-selected node, leaving unselected ones untouched', async () => {
+    const user = userEvent.setup();
+    render(
+      <ReactFlowProvider>
+        <DiagramCanvas />
+      </ReactFlowProvider>,
+    );
+    useDiagramStore.getState().setMultiSelectedNodeIds(new Set(['a', 'c']));
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-id="a"]')?.className).toContain('selected');
+    });
+    await user.keyboard('{Delete}');
+
+    const ids = useDiagramStore.getState().diagram.nodes.map((n) => n.id);
+    expect(ids).not.toContain('a');
+    expect(ids).not.toContain('c');
+    expect(ids).toContain('b');
+  });
+
+  it('deletes a single selected (unmerged) edge', async () => {
+    const user = userEvent.setup();
+    render(
+      <ReactFlowProvider>
+        <DiagramCanvas />
+      </ReactFlowProvider>,
+    );
+    // Edges never resolve real geometry/DOM under jsdom (no layout engine
+    // to place them against — see the marquee-selection comment at the
+    // top of this file), but deleteKeyCode reads selection off React
+    // Flow's own internal edge state (driven straight from the `selected`
+    // field on the edge objects we pass into <ReactFlow>), not the DOM —
+    // so this still exercises the real path, just without a DOM check to
+    // wait on first.
+    useDiagramStore.getState().select({ kind: 'edge', id: 'merged:a=>b' });
+
+    await user.keyboard('{Backspace}');
+
+    const ids = useDiagramStore.getState().diagram.edges.map((e) => e.id);
+    expect(ids).not.toContain('e1');
+    expect(ids).toContain('e2');
+  });
+
+  it('does nothing when nothing is selected', async () => {
+    const user = userEvent.setup();
+    render(
+      <ReactFlowProvider>
+        <DiagramCanvas />
+      </ReactFlowProvider>,
+    );
+    const before = useDiagramStore.getState().diagram;
+
+    await user.keyboard('{Delete}');
+
+    expect(useDiagramStore.getState().diagram.nodes).toEqual(before.nodes);
+    expect(useDiagramStore.getState().diagram.edges).toEqual(before.edges);
+  });
+});
