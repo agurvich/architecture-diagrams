@@ -380,3 +380,242 @@ test('Delete removes a selected node', async ({ page }) => {
   await expect(page.locator('.toolbar__stats')).toHaveText('29 nodes · 24 edges · 2 lenses');
 });
 
+test('toggling the Anchor on an action edge with a trigger still renders the trigger (regression: used to vanish)', async ({ page }) => {
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Acquisition Account' }).locator('.graph-node__chevron').click();
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Ingest Step Function' }).locator('.graph-node__chevron').click();
+
+  // The trigger (dotted line from the process step to the actor anchor)
+  // has no label of its own, so it has no clickable hit target — its
+  // geometry is entirely derived from the action edge it points at
+  // (a-clean-ingest, "Cross-account CopyObject"), which is what actually
+  // has a clickable label. Toggling *that* edge's Anchor is what recomputes
+  // the anchor's position and the trigger's path.
+  const trigger = page.locator('[data-id="merged:x-account-copy=>anchor:a-clean-ingest"]');
+  await expect(trigger).toHaveCount(1);
+
+  // A nearby actor-anchor icon (an absolutely-positioned SVG sitting at
+  // zIndex 1000, see useCanvasNodesAndEdges.ts) overlaps this label at
+  // this zoom level, so a real screen-coordinate click resolves to the
+  // icon instead. Dispatch a real bubbling click directly on the label —
+  // it reaches the same React onClick handler without depending on which
+  // element the browser's hit-test happens to pick at this coordinate.
+  await page
+    .locator('.graph-edge__label-text', { hasText: 'Cross-account CopyObject' })
+    .evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })));
+
+  const panel = page.locator('.properties-panel');
+  await expect(panel.locator('h3')).toHaveText('Edge');
+  const anchorSwitch = panel.getByRole('switch', { name: 'Anchor' });
+
+  await anchorSwitch.click(); // on
+  await expect(trigger.locator('.react-flow__edge-path')).toHaveCount(1);
+  await expect(trigger.locator('.react-flow__edge-path')).toHaveAttribute('d', /\S/);
+
+  await anchorSwitch.click(); // off
+  await expect(trigger.locator('.react-flow__edge-path')).toHaveCount(1);
+  await expect(trigger.locator('.react-flow__edge-path')).toHaveAttribute('d', /\S/);
+
+  await anchorSwitch.click(); // on again — this is the exact bug repro
+  await expect(trigger.locator('.react-flow__edge-path')).toHaveCount(1);
+  await expect(trigger.locator('.react-flow__edge-path')).toHaveAttribute('d', /\S/);
+});
+
+test('clicking an actor anchor opens the properties panel for the action it sits on, not itself', async ({ page }) => {
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Acquisition Account' }).locator('.graph-node__chevron').click();
+
+  const anchor = page.locator('[data-id="anchor:a-landing-unscanned"] .graph-node__anchor');
+  await anchor.click();
+
+  const panel = page.locator('.properties-panel');
+  await expect(panel.locator('h3')).toHaveText('Edge');
+  await expect(panel).toContainText('Landing Bucket');
+  await expect(panel).toContainText('Unscanned Bucket');
+});
+
+test('hierarchy panel: dragging a row onto another row\'s middle reparents it', async ({ page }) => {
+  // Expand "Acquisition Account" in the HIERARCHY list (left panel, not
+  // the canvas) via its own row's chevron button.
+  await page.locator('div[draggable="true"]', { hasText: 'Acquisition Account' }).locator('button').click();
+
+  const landingRow = page.locator('div[draggable="true"]', { hasText: 'Landing Bucket' });
+  const avLambdaRow = page.locator('div[draggable="true"]', { hasText: 'AV Lambda' });
+  await expect(landingRow).toBeVisible();
+  await expect(avLambdaRow).toBeVisible();
+
+  await landingRow.dragTo(avLambdaRow);
+
+  await expect
+    .poll(async () => {
+      const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
+      const diagram = raw ? JSON.parse(raw) : null;
+      return diagram?.nodes.find((n: { id: string }) => n.id === 'landing-bucket')?.parentId;
+    })
+    .toBe('av-lambda');
+});
+
+test('hierarchy panel context menu: Duplicate copies a node, Expand all/Collapse all recurse the subtree', async ({ page }) => {
+  await page.locator('div[draggable="true"]', { hasText: 'Acquisition Account' }).locator('button').click();
+
+  const avLambdaRow = page.locator('div[draggable="true"]', { hasText: 'AV Lambda' });
+  await avLambdaRow.click({ button: 'right' });
+  await page.getByText('Expand all', { exact: true }).click();
+
+  await expect(page.locator('div[draggable="true"]', { hasText: /^Quarantine$/ })).toBeVisible();
+
+  await avLambdaRow.click({ button: 'right' });
+  await page.getByText('Collapse all', { exact: true }).click();
+  await expect(page.locator('div[draggable="true"]', { hasText: /^Quarantine$/ })).toHaveCount(0);
+
+  const landingRow = page.locator('div[draggable="true"]', { hasText: 'Landing Bucket' });
+  await page.keyboard.press('Escape'); // make sure the previous context menu is fully closed first
+  await landingRow.click({ button: 'right' });
+  await page.getByText('Duplicate', { exact: true }).last().click();
+
+  await expect(page.locator('.toolbar__stats')).toHaveText('30 nodes · 24 edges · 2 lenses');
+  await expect(page.locator('.graph-node', { hasText: 'Landing Bucket copy' })).toBeVisible();
+});
+
+test('bulk anchor toggle: "Make curvy" applies to every selected edge at once', async ({ page }) => {
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Acquisition Account' }).locator('.graph-node__chevron').click();
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Ingest Step Function' }).locator('.graph-node__chevron').click();
+  await page.locator('.graph-node--collapsed-group', { hasText: 'AV Lambda' }).locator('.graph-node__chevron').click();
+
+  const passLabel = page.locator('.graph-edge__label-text', { hasText: 'Pass' });
+  const failLabel = page.locator('.graph-edge__label-text', { hasText: 'Fail' });
+  // An edge-reconnect handle circle from a nearby edge sits directly on
+  // top of this label at this zoom level, so a real screen-coordinate
+  // click (even with force:true, which only skips Playwright's own
+  // actionability check — the browser's actual hit-test still resolves
+  // to whatever's visually on top) lands on that circle instead of the
+  // label underneath it. Dispatch a real bubbling click event directly on
+  // the label element instead: it reaches the exact same React onClick
+  // handler a real click would, without depending on which element the
+  // browser's hit-test happens to pick at this coordinate.
+  const shiftClick = (locator: typeof passLabel) =>
+    locator.evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true, view: window })));
+
+  // Shift-click BOTH — a plain click on the first would single-select it
+  // (into `selected`, not `multiSelectedEdgeIds`), leaving only one edge
+  // in the multi-selection and the bulk action bar never appearing.
+  await shiftClick(passLabel);
+  await shiftClick(failLabel);
+
+  await expect(page.getByText('2 edges selected')).toBeVisible();
+  await page.getByRole('button', { name: 'Make curvy' }).click();
+
+  // saveToLocalStorageDebounced waits ~300ms before writing — poll instead
+  // of reading immediately, or this reads the pre-mutation (null) value.
+  await expect
+    .poll(async () => {
+      const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
+      if (!raw) return false;
+      const diagram = JSON.parse(raw);
+      const edge = diagram.edges.find((e: { id: string }) => e.id === 'cf-scan-copy');
+      return Boolean(edge?.sourceHandle && edge?.targetHandle);
+    })
+    .toBe(true);
+
+  const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
+  const diagram = JSON.parse(raw!);
+  for (const id of ['cf-scan-copy', 'cf-scan-quarantine']) {
+    const edge = diagram.edges.find((e: { id: string }) => e.id === id);
+    expect(edge.sourceHandle).toBeDefined();
+    expect(edge.targetHandle).toBeDefined();
+  }
+});
+
+test('bulk delete removes every multi-selected node', async ({ page }) => {
+  // Two plain top-level nodes with no children — keeps this test about the
+  // bulk-delete path itself, not cascade-delete edge cases for a deleted
+  // container's descendants.
+  const source = page.locator('[data-id="source"]');
+  const processing = page.locator('[data-id="account-processing"]');
+  const sourceBox = (await source.boundingBox())!;
+  const processingBox = (await processing.boundingBox())!;
+
+  const minX = Math.min(sourceBox.x, processingBox.x) - 30;
+  const minY = Math.min(sourceBox.y, processingBox.y) - 30;
+  const maxX = Math.max(sourceBox.x + sourceBox.width, processingBox.x + processingBox.width) + 30;
+  const maxY = Math.max(sourceBox.y + sourceBox.height, processingBox.y + processingBox.height) + 30;
+
+  await page.keyboard.down('Shift');
+  await page.mouse.move(minX, minY);
+  await page.mouse.down();
+  await page.mouse.move(maxX, maxY, { steps: 10 });
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+
+  await expect(page.getByText('2 nodes selected')).toBeVisible();
+  await page.locator('button', { hasText: 'Delete' }).first().click();
+
+  await expect(source).toHaveCount(0);
+  await expect(processing).toHaveCount(0);
+});
+
+test('Export JSON then Import JSON round-trips the diagram exactly', async ({ page }) => {
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Export JSON' }).click(),
+  ]);
+  const exportPath = await download.path();
+  expect(exportPath).toBeTruthy();
+
+  // Mutate afterward so the import is a real round-trip, not a no-op.
+  await page.getByRole('button', { name: '+ Add node' }).click();
+  await expect(page.locator('.toolbar__stats')).toHaveText('30 nodes · 24 edges · 2 lenses');
+
+  // setInputFiles talks to the hidden <input type="file"> directly — no
+  // need to click "Import JSON" first (that would just try to open a real
+  // native OS file picker).
+  await page.locator('input[type="file"]').setInputFiles(exportPath!);
+
+  await expect(page.locator('.toolbar__stats')).toHaveText('29 nodes · 24 edges · 2 lenses');
+  await expect(page.locator('.graph-node', { hasText: 'New node' })).toHaveCount(0);
+});
+
+test('a change survives a full page reload (persisted to localStorage)', async ({ page }) => {
+  await page.getByRole('button', { name: '+ Add node' }).click();
+  await page.locator('.properties-panel').getByLabel('Label').fill('Survives Reload');
+  await expect(page.locator('.graph-node', { hasText: 'Survives Reload' })).toBeVisible();
+
+  // The save to localStorage is debounced (300ms) — wait for it to
+  // actually land before reloading, or the reload just re-reads the seed.
+  await expect
+    .poll(async () => {
+      const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
+      const diagram = raw ? JSON.parse(raw) : null;
+      return diagram?.nodes.some((n: { label: string }) => n.label === 'Survives Reload');
+    })
+    .toBe(true);
+
+  await page.reload();
+
+  await expect(page.locator('.graph-node', { hasText: 'Survives Reload' })).toBeVisible();
+  await expect(page.locator('.toolbar__stats')).toHaveText('30 nodes · 24 edges · 2 lenses');
+});
+
+test('"Load example" swaps in a different diagram entirely', async ({ page }) => {
+  await page.getByTitle('Load one of the built-in example diagrams').selectOption('three-tier-web-app');
+
+  await expect(page.locator('.toolbar__stats')).toHaveText('6 nodes · 5 edges · 1 lenses');
+  await expect(page.locator('.graph-node', { hasText: 'Client' })).toBeVisible();
+  await expect(page.locator('.graph-node', { hasText: 'Database' })).toBeVisible();
+  await expect(page.locator('.graph-node', { hasText: 'USASpending.gov' })).toHaveCount(0);
+});
+
+test('frame highlight authoring: toggling a node while editing marks it highlighted for that frame', async ({ page }) => {
+  await page.getByRole('button', { name: 'Capture current state' }).click();
+
+  // The seed ships with its own 4 frames already — the newly captured one
+  // is appended last.
+  const editButton = page.getByRole('button', { name: /Edit highlights/ }).last();
+  await expect(editButton).toHaveText('Edit highlights (0)');
+  await editButton.click();
+
+  await expect(page.getByText(/click nodes\/edges to toggle/)).toBeVisible();
+  await page.locator('.graph-node', { hasText: 'USASpending.gov' }).click();
+
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Edit highlights/ }).last()).toHaveText('Edit highlights (1)');
+});
+
