@@ -20,6 +20,17 @@ export interface DiagramNode {
   icon?: string | null;
   /** Marks this node as eligible to be attributed as the actor performing an action edge (see DiagramEdge.actorId) or triggering one. */
   isActor?: boolean;
+  /**
+   * When set, this container's own children are auto-arranged in a single
+   * row (horizontal) or column (vertical) with `gap` px between them,
+   * Figma-style, instead of each one's stored `position` being read
+   * literally. A child's stored position still matters while this is
+   * set — it's the sort key (top-to-bottom for vertical, left-to-right
+   * for horizontal) that decides where in the row/column it lands, so
+   * dragging it near a different sibling reorders rather than repositions
+   * arbitrarily. See engine/containerLayout.ts.
+   */
+  autoLayout?: { direction: 'vertical' | 'horizontal'; gap: number };
 }
 
 export interface DiagramEdge {

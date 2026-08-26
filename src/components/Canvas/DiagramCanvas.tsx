@@ -19,6 +19,7 @@ import { useDiagramStore } from '../../store/diagramStore';
 import { computeEffectiveGraph } from '../../engine/computeEffectiveGraph';
 import { buildAncestryIndex, isAncestor } from '../../engine/ancestry';
 import { anchorIdFor } from '../../engine/actorAnchor';
+import { ANCHOR_SIZE, LEAF_SIZE, computeAutoLayoutPositions, computeContainerSizes, topoSort } from '../../engine/containerLayout';
 import { guessIconKey } from '../../icons/iconMatcher';
 import type { EffectiveNode } from '../../types/effectiveGraph';
 import { GraphNode, type GraphNodeType } from './GraphNode';
@@ -26,74 +27,8 @@ import { GraphEdge, type GraphEdgeType } from './GraphEdge';
 import { ConnectionPopover, type PendingConnection } from './ConnectionPopover';
 import { PaneContextMenu } from './PaneContextMenu';
 
-const LEAF_SIZE = { width: 170, height: 64 };
-const CONTAINER_PADDING = 20;
-const CONTAINER_HEADER_HEIGHT = 34;
-const ANCHOR_SIZE = 26;
-
 const nodeTypes = { graphNode: GraphNode };
 const edgeTypes = { graphEdge: GraphEdge };
-
-function computeContainerSizes(nodes: EffectiveNode[]): Map<string, { width: number; height: number }> {
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const childrenOf = new Map<string, EffectiveNode[]>();
-  for (const n of nodes) {
-    if (n.parentId) {
-      const list = childrenOf.get(n.parentId) ?? [];
-      list.push(n);
-      childrenOf.set(n.parentId, list);
-    }
-  }
-
-  const sizeCache = new Map<string, { width: number; height: number }>();
-
-  function sizeOf(id: string): { width: number; height: number } {
-    const cached = sizeCache.get(id);
-    if (cached) return cached;
-    const node = byId.get(id);
-    if (!node || node.renderMode !== 'expanded-container') {
-      const size = LEAF_SIZE;
-      sizeCache.set(id, size);
-      return size;
-    }
-    const children = childrenOf.get(id) ?? [];
-    if (children.length === 0) {
-      sizeCache.set(id, LEAF_SIZE);
-      return LEAF_SIZE;
-    }
-    let maxX = 0;
-    let maxY = 0;
-    for (const child of children) {
-      const childSize = sizeOf(child.id);
-      maxX = Math.max(maxX, child.position.x + childSize.width);
-      maxY = Math.max(maxY, child.position.y + childSize.height);
-    }
-    const size = {
-      width: maxX + CONTAINER_PADDING * 2,
-      height: maxY + CONTAINER_PADDING + CONTAINER_HEADER_HEIGHT,
-    };
-    sizeCache.set(id, size);
-    return size;
-  }
-
-  for (const n of nodes) sizeOf(n.id);
-  return sizeCache;
-}
-
-function topoSort(nodes: EffectiveNode[]): EffectiveNode[] {
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const visited = new Set<string>();
-  const ordered: EffectiveNode[] = [];
-
-  function visit(node: EffectiveNode) {
-    if (visited.has(node.id)) return;
-    if (node.parentId && byId.has(node.parentId)) visit(byId.get(node.parentId)!);
-    visited.add(node.id);
-    ordered.push(node);
-  }
-  for (const n of nodes) visit(n);
-  return ordered;
-}
 
 export function DiagramCanvas() {
   const diagram = useDiagramStore((s) => s.diagram);
@@ -114,6 +49,7 @@ export function DiagramCanvas() {
   const deleteNode = useDiagramStore((s) => s.deleteNode);
   const updateEdge = useDiagramStore((s) => s.updateEdge);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
+  const isNodeDragging = useDiagramStore((s) => s.isNodeDragging);
   const setNodeDragging = useDiagramStore((s) => s.setNodeDragging);
 
   const [pending, setPending] = useState<PendingConnection | null>(null);
@@ -139,6 +75,22 @@ export function DiagramCanvas() {
   const sizes = useMemo(() => computeContainerSizes(effectiveGraph.visibleNodes), [effectiveGraph.visibleNodes]);
   const orderedNodes = useMemo(() => topoSort(effectiveGraph.visibleNodes), [effectiveGraph.visibleNodes]);
 
+  // Position overrides for children of an auto-layout container (Figma-
+  // style stacked row/column instead of freeform placement) — suppressed
+  // entirely while any node is being dragged, same reasoning as freezing
+  // hover mid-drag elsewhere in this file: recomputing and snapping a
+  // node into a stacked slot on every drag tick would fight the cursor
+  // instead of following it. The dragged node (and its auto-layout
+  // siblings, if any) render at their raw stored position for the
+  // duration of the drag and snap into the freshly-sorted stack the
+  // instant it stops — an elastic "reorder on drop" rather than a live
+  // reflow while dragging.
+  const autoLayoutPositions = useMemo(
+    () => (isNodeDragging ? new Map<string, { x: number; y: number }>() : computeAutoLayoutPositions(effectiveGraph.visibleNodes, sizes)),
+    [effectiveGraph.visibleNodes, sizes, isNodeDragging],
+  );
+  const positionOf = useCallback((n: EffectiveNode) => autoLayoutPositions.get(n.id) ?? n.position, [autoLayoutPositions]);
+
   // Absolute (canvas-space) position of every visible node, resolved by
   // walking down from each root — nested nodes' own `position` is only
   // relative to whatever container currently holds them. Needed to place
@@ -148,10 +100,11 @@ export function DiagramCanvas() {
     const map = new Map<string, { x: number; y: number }>();
     for (const n of orderedNodes) {
       const parentAbs = n.parentId ? map.get(n.parentId) : undefined;
-      map.set(n.id, { x: (parentAbs?.x ?? 0) + n.position.x, y: (parentAbs?.y ?? 0) + n.position.y });
+      const pos = positionOf(n);
+      map.set(n.id, { x: (parentAbs?.x ?? 0) + pos.x, y: (parentAbs?.y ?? 0) + pos.y });
     }
     return map;
-  }, [orderedNodes]);
+  }, [orderedNodes, positionOf]);
 
   const rfNodes: GraphNodeType[] = useMemo(
     () =>
@@ -160,7 +113,7 @@ export function DiagramCanvas() {
         const node: Node<EffectiveNode, 'graphNode'> = {
           id: n.id,
           type: 'graphNode',
-          position: n.position,
+          position: positionOf(n),
           parentId: n.parentId,
           // No `extent: 'parent'` clamp here: nodes need to be draggable
           // past their current container's edges so onNodeDragStop's
@@ -186,7 +139,7 @@ export function DiagramCanvas() {
         };
         return node;
       }),
-    [orderedNodes, sizes, multiSelectedNodeIds, selected],
+    [orderedNodes, sizes, multiSelectedNodeIds, selected, positionOf],
   );
 
   const rfEdges: GraphEdgeType[] = useMemo(

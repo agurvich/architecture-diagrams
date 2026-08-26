@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import type { EffectiveNode } from '../../types/effectiveGraph';
 import { useDiagramStore } from '../../store/diagramStore';
 import { actionEdgeIdFromAnchor } from '../../engine/actorAnchor';
+import { DEFAULT_AUTO_LAYOUT_GAP } from '../../engine/containerLayout';
 import { getIconComponent } from '../../icons/registry';
 import { guessIconKey } from '../../icons/iconMatcher';
 
@@ -171,6 +172,31 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
         </ContextMenuItem>
       )}
       <ContextMenuItem onClick={handleAddChild}>Add child node</ContextMenuItem>
+      {data.renderMode !== 'leaf' && (
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>Auto layout</ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-40">
+            <ContextMenuItem
+              onClick={() => updateNode(id, { autoLayout: undefined })}
+              className={!data.autoLayout ? 'font-semibold' : undefined}
+            >
+              None (manual)
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => updateNode(id, { autoLayout: { direction: 'vertical', gap: data.autoLayout?.gap ?? DEFAULT_AUTO_LAYOUT_GAP } })}
+              className={data.autoLayout?.direction === 'vertical' ? 'font-semibold' : undefined}
+            >
+              Vertical
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => updateNode(id, { autoLayout: { direction: 'horizontal', gap: data.autoLayout?.gap ?? DEFAULT_AUTO_LAYOUT_GAP } })}
+              className={data.autoLayout?.direction === 'horizontal' ? 'font-semibold' : undefined}
+            >
+              Horizontal
+            </ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+      )}
       <ContextMenuSub>
         <ContextMenuSubTrigger>Set color</ContextMenuSubTrigger>
         <ContextMenuSubContent className="w-auto">

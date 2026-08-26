@@ -7,6 +7,7 @@ import { useDiagramStore } from '../../../store/diagramStore';
 import type { NodeId } from '../../../types/diagram';
 import { ICON_OPTIONS, getIconComponent } from '../../../icons/registry';
 import { guessIconKey } from '../../../icons/iconMatcher';
+import { DEFAULT_AUTO_LAYOUT_GAP } from '../../../engine/containerLayout';
 
 const DEFAULT_COLOR = '#98a2b3';
 
@@ -69,6 +70,7 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
   const suggestableKeys = allMetadataKeys.filter((k) => !(k in node.metadata));
   const suggestedNewValues = valuesByKey.get(newKey.trim()) ?? [];
   const eligibleParents = nodes.filter((n) => n.id !== node.id && !wouldCreateCycle(nodes, node.id, n.id));
+  const hasChildren = nodes.some((n) => n.parentId === node.id);
 
   return (
     <div className="properties-panel flex flex-col gap-2.5 rounded-lg border bg-card p-2.5">
@@ -114,6 +116,52 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
           ))}
         </select>
       </div>
+
+      {hasChildren && (
+        <div className="flex flex-col gap-1">
+          <Label>Auto layout</Label>
+          <div className="flex gap-1">
+            {(['none', 'vertical', 'horizontal'] as const).map((mode) => {
+              const isActive = mode === 'none' ? !node.autoLayout : node.autoLayout?.direction === mode;
+              return (
+                <Button
+                  key={mode}
+                  size="sm"
+                  variant={isActive ? 'default' : 'outline'}
+                  className="flex-1 capitalize"
+                  onClick={() =>
+                    updateNode(node.id, {
+                      autoLayout: mode === 'none' ? undefined : { direction: mode, gap: node.autoLayout?.gap ?? DEFAULT_AUTO_LAYOUT_GAP },
+                    })
+                  }
+                >
+                  {mode === 'none' ? 'Manual' : mode}
+                </Button>
+              );
+            })}
+          </div>
+          {node.autoLayout && (
+            <div className="mt-1 flex items-center gap-1.5">
+              <Label htmlFor={`${idPrefix}-gap`} className="font-normal text-muted-foreground">
+                Gap
+              </Label>
+              <Input
+                id={`${idPrefix}-gap`}
+                type="number"
+                min={0}
+                className="h-7 w-20"
+                value={node.autoLayout.gap}
+                onChange={(e) => {
+                  const gap = Number(e.target.value);
+                  if (Number.isFinite(gap) && gap >= 0 && node.autoLayout) {
+                    updateNode(node.id, { autoLayout: { ...node.autoLayout, gap } });
+                  }
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-1">
         <Label htmlFor={`${idPrefix}-color`}>Color</Label>

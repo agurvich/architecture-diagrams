@@ -64,6 +64,7 @@ export function computeEffectiveGraph(
       color: resolveColor(node.id),
       icon: node.icon,
       isActor: node.isActor,
+      autoLayout: node.autoLayout,
       dimmed: false,
       highlighted: false,
     });

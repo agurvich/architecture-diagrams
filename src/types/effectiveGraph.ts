@@ -16,6 +16,8 @@ export interface EffectiveNode {
   icon?: string | null;
   /** Eligible to be attributed as an action's actor, or as a trigger's source. */
   isActor?: boolean;
+  /** See DiagramNode.autoLayout — this container's own children auto-arrange instead of using their stored position literally. */
+  autoLayout?: { direction: 'vertical' | 'horizontal'; gap: number };
   /**
    * actor-anchor nodes only: the effective edge id (the action) this
    * anchor sits on and represents — clicking the anchor selects this
