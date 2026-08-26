@@ -113,8 +113,20 @@ export function topoSort(nodes: EffectiveNode[]): EffectiveNode[] {
  * of requiring a separate explicit order field. Nodes not inside any
  * auto-layout container are absent from the returned map — callers fall
  * back to the node's own stored position for those.
+ *
+ * `excludeId`, when given, gets no override entry — the caller wants that
+ * one node to render at its own raw (live-updating, cursor-following)
+ * position instead, e.g. because it's the node currently being dragged.
+ * It's still included as an input to every *other* sibling's computed
+ * slot (via the sort and the running offset), so dragging it to a new
+ * spot in the order reflows its siblings live to make room, instead of
+ * freezing the whole container's layout for the duration of the drag.
  */
-export function computeAutoLayoutPositions(nodes: EffectiveNode[], sizes: Map<string, Size>): Map<string, { x: number; y: number }> {
+export function computeAutoLayoutPositions(
+  nodes: EffectiveNode[],
+  sizes: Map<string, Size>,
+  excludeId?: string,
+): Map<string, { x: number; y: number }> {
   const childrenOf = buildChildrenIndex(nodes);
   const overrides = new Map<string, { x: number; y: number }>();
 
@@ -130,10 +142,12 @@ export function computeAutoLayoutPositions(nodes: EffectiveNode[], sizes: Map<st
     let offset = direction === 'vertical' ? CONTAINER_HEADER_HEIGHT : CONTAINER_PADDING;
     for (const child of sorted) {
       const childSize = sizes.get(child.id) ?? LEAF_SIZE;
-      overrides.set(
-        child.id,
-        direction === 'vertical' ? { x: CONTAINER_PADDING, y: offset } : { x: offset, y: CONTAINER_HEADER_HEIGHT },
-      );
+      if (child.id !== excludeId) {
+        overrides.set(
+          child.id,
+          direction === 'vertical' ? { x: CONTAINER_PADDING, y: offset } : { x: offset, y: CONTAINER_HEADER_HEIGHT },
+        );
+      }
       offset += (direction === 'vertical' ? childSize.height : childSize.width) + gap;
     }
   }

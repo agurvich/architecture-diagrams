@@ -50,8 +50,8 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   // the new position on drag stop. Freezing hover during either kind of
   // drag avoids the churn entirely.
   const connectionInProgress = useConnection((c) => c.inProgress);
-  const isNodeDragging = useDiagramStore((s) => s.isNodeDragging);
-  const hoverFrozen = connectionInProgress || isNodeDragging;
+  const draggedNodeId = useDiagramStore((s) => s.draggedNodeId);
+  const hoverFrozen = connectionInProgress || draggedNodeId !== null;
   const onHoverEnter = () => {
     if (!hoverFrozen) setHover({ kind: 'node', id });
   };
@@ -138,7 +138,13 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
         }}
       >
         {NodeIcon && <NodeIcon className="text-white" style={{ fontSize: 14 }} />}
-        <Handle id={Position.Top} type="source" position={Position.Top} className="!opacity-0" />
+        {/* All four compass handles, same as every other node — not just
+            "top": a trigger edge's fixed anchor needs an actual handle to
+            resolve against for whichever side geometry picks, and with
+            only one declared, React Flow had no choice but to force every
+            fixed-anchor trigger onto that single side regardless of the
+            source step's real position. */}
+        {handles}
       </div>
     );
   }

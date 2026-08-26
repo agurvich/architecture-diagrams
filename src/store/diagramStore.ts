@@ -54,13 +54,16 @@ interface DiagramStore {
   editingHighlightsForFrameId: FrameId | null;
   importError: string | null;
   /**
-   * True while a node is actively being dragged. Hover updates must be
+   * The node actively being dragged, if any. Hover updates must be
    * suppressed during this window: hovering another node mid-drag would
    * otherwise force a full effective-graph recompute, replacing every
    * rendered node/edge object and snapping the dragged node back to its
-   * pre-drag position on every intermediate re-render.
+   * pre-drag position on every intermediate re-render. Also excludes
+   * that one node from the auto-layout position sync (see
+   * DiagramCanvas.tsx) so it can follow the cursor freely instead of
+   * being snapped into its computed stacked slot on every drag tick.
    */
-  isNodeDragging: boolean;
+  draggedNodeId: NodeId | null;
 
   loadSeed: () => void;
   /** Loads any example diagram (see data/examples/) the same way loadSeed loads the shipped default — a fresh clone, all view state reset. */
@@ -70,7 +73,7 @@ interface DiagramStore {
   resetToImported: () => void;
   exportJSON: () => string;
   clearImportError: () => void;
-  setNodeDragging: (dragging: boolean) => void;
+  setDraggedNodeId: (id: NodeId | null) => void;
 
   toggleEdgeSet: (id: EdgeSetId) => void;
   toggleExpand: (nodeId: NodeId) => void;
@@ -170,9 +173,9 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     editingHighlightsForFrameId: null,
     lastImportedDiagram: loadLastImportedDiagram(),
     importError: null,
-    isNodeDragging: false,
+    draggedNodeId: null,
 
-    setNodeDragging: (dragging) => set({ isNodeDragging: dragging }),
+    setDraggedNodeId: (id) => set({ draggedNodeId: id }),
 
     loadSeed: () => get().loadExample(seedDiagram),
 

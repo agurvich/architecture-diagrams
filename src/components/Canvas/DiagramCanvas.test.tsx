@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReactFlowProvider } from '@xyflow/react';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -120,4 +120,107 @@ describe('DiagramCanvas — group-select bulk actions', () => {
   // stub — so shift-click-to-toggle is verified at the store level
   // (toggleMultiSelectedEdge, in diagramStore.test.ts) and by hand in a
   // real browser instead of through a rendered edge element here.
+});
+
+describe('DiagramCanvas — auto-layout position persistence', () => {
+  function setAutoLayoutContainer() {
+    useDiagramStore.getState().loadSeed();
+    useDiagramStore.setState((state) => ({
+      diagram: {
+        ...state.diagram,
+        nodes: [
+          {
+            id: 'box',
+            label: 'Box',
+            position: { x: 0, y: 0 },
+            metadata: {},
+            autoLayout: { direction: 'vertical' as const, gap: 10 },
+          },
+          // Deliberately "wrong" — nowhere near where auto-layout will
+          // actually place them; only their relative y order matters as
+          // the sort key (child1 before child2).
+          { id: 'child1', label: 'Child1', parentId: 'box', position: { x: 999, y: 0 }, metadata: {} },
+          { id: 'child2', label: 'Child2', parentId: 'box', position: { x: -50, y: 500 }, metadata: {} },
+        ],
+        edges: [],
+      },
+      activeSets: new Set([state.diagram.edgeSets[0].id]),
+      expandedNodes: new Set(['box']),
+      selected: null,
+      multiSelectedNodeIds: new Set(),
+      multiSelectedEdgeIds: new Set(),
+      draggedNodeId: null,
+    }));
+  }
+
+  function positionsOf(ids: string[]) {
+    const nodes = useDiagramStore.getState().diagram.nodes;
+    return Object.fromEntries(ids.map((id) => [id, { ...nodes.find((n) => n.id === id)!.position }]));
+  }
+
+  it('syncs stored positions to the computed auto-layout slots on mount, not just the render override', async () => {
+    setAutoLayoutContainer();
+    render(
+      <ReactFlowProvider>
+        <DiagramCanvas />
+      </ReactFlowProvider>,
+    );
+
+    await waitFor(() => {
+      const { child1, child2 } = positionsOf(['child1', 'child2']);
+      expect(child1).toEqual({ x: 20, y: 34 });
+      expect(child2).toEqual({ x: 20, y: 108 }); // 34 + LEAF_SIZE.height(64) + gap(10)
+    });
+  });
+
+  it('leaves positions frozen exactly where they last synced once auto-layout is turned off', async () => {
+    setAutoLayoutContainer();
+    render(
+      <ReactFlowProvider>
+        <DiagramCanvas />
+      </ReactFlowProvider>,
+    );
+    await waitFor(() => {
+      expect(positionsOf(['child1']).child1).toEqual({ x: 20, y: 34 });
+    });
+
+    useDiagramStore.getState().updateNode('box', { autoLayout: undefined });
+    // Give any (incorrect, if present) further sync a chance to run, then
+    // assert nothing moved — this is the "free alignment" the auto-layout
+    // toggle is meant to leave behind.
+    await new Promise((r) => setTimeout(r, 50));
+    const { child1, child2 } = positionsOf(['child1', 'child2']);
+    expect(child1).toEqual({ x: 20, y: 34 });
+    expect(child2).toEqual({ x: 20, y: 108 });
+  });
+
+  it('does not overwrite the position of the node currently being dragged, but still syncs its siblings', async () => {
+    setAutoLayoutContainer();
+    render(
+      <ReactFlowProvider>
+        <DiagramCanvas />
+      </ReactFlowProvider>,
+    );
+    await waitFor(() => {
+      expect(positionsOf(['child1']).child1).toEqual({ x: 20, y: 34 });
+    });
+
+    // Simulate onNodeDragStart + a live drag tick: mark child1 as being
+    // dragged, then move it somewhere arbitrary the way onNodeDrag would
+    // — past child2 (a large y), so this also exercises drag-to-reorder.
+    useDiagramStore.getState().setDraggedNodeId('child1');
+    useDiagramStore.getState().updateNode('child1', { position: { x: 777, y: 777 } });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(positionsOf(['child1']).child1).toEqual({ x: 777, y: 777 });
+    // child2 wasn't excluded, so it already reflowed into the newly-first
+    // slot while child1 (still dragging, further down) held the second.
+    expect(positionsOf(['child2']).child2).toEqual({ x: 20, y: 34 });
+
+    // Release: dropped past child2, so it settles into the second slot —
+    // not back to its original position, a reorder actually took effect.
+    useDiagramStore.getState().setDraggedNodeId(null);
+    await waitFor(() => {
+      expect(positionsOf(['child1']).child1).toEqual({ x: 20, y: 108 });
+    });
+  });
 });

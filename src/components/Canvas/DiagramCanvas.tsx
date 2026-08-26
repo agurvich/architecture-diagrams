@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Background,
   ConnectionMode,
@@ -62,8 +62,7 @@ export function DiagramCanvas() {
   const deleteNode = useDiagramStore((s) => s.deleteNode);
   const updateEdge = useDiagramStore((s) => s.updateEdge);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
-  const isNodeDragging = useDiagramStore((s) => s.isNodeDragging);
-  const setNodeDragging = useDiagramStore((s) => s.setNodeDragging);
+  const setDraggedNodeId = useDiagramStore((s) => s.setDraggedNodeId);
 
   const [pending, setPending] = useState<PendingConnection | null>(null);
   const [paneMenu, setPaneMenu] = useState<{ screenX: number; screenY: number } | null>(null);
@@ -89,20 +88,51 @@ export function DiagramCanvas() {
   const orderedNodes = useMemo(() => topoSort(effectiveGraph.visibleNodes), [effectiveGraph.visibleNodes]);
 
   // Position overrides for children of an auto-layout container (Figma-
-  // style stacked row/column instead of freeform placement) — suppressed
-  // entirely while any node is being dragged, same reasoning as freezing
-  // hover mid-drag elsewhere in this file: recomputing and snapping a
-  // node into a stacked slot on every drag tick would fight the cursor
-  // instead of following it. The dragged node (and its auto-layout
-  // siblings, if any) render at their raw stored position for the
-  // duration of the drag and snap into the freshly-sorted stack the
-  // instant it stops — an elastic "reorder on drop" rather than a live
-  // reflow while dragging.
+  // style stacked row/column instead of freeform placement). Only the
+  // node actually being dragged (see draggedNodeId below) is excluded
+  // from getting an override — it renders at its own raw, live-updating
+  // (cursor-following) position for the duration of the drag — while
+  // every OTHER node, auto-layout or not, keeps rendering at its normal
+  // computed position throughout. Suppressing the override for *every*
+  // node whenever *any* drag was active (the previous approach) meant
+  // every auto-layout child in the whole diagram would snap to its
+  // stale stored `position` — never kept in sync while auto-layout is
+  // what's actually been positioning it — the instant any drag started
+  // anywhere, which is exactly what looked like every position on
+  // screen "randomizing". Still-visible siblings in the dragged node's
+  // own container reflow live as its sort rank changes during the drag,
+  // since it's still included as an input to their computed slots, just
+  // not given one of its own.
+  const draggedNodeId = useDiagramStore((s) => s.draggedNodeId);
   const autoLayoutPositions = useMemo(
-    () => (isNodeDragging ? new Map<string, { x: number; y: number }>() : computeAutoLayoutPositions(effectiveGraph.visibleNodes, sizes)),
-    [effectiveGraph.visibleNodes, sizes, isNodeDragging],
+    () => computeAutoLayoutPositions(effectiveGraph.visibleNodes, sizes, draggedNodeId ?? undefined),
+    [effectiveGraph.visibleNodes, sizes, draggedNodeId],
   );
   const positionOf = useCallback((n: EffectiveNode) => autoLayoutPositions.get(n.id) ?? n.position, [autoLayoutPositions]);
+
+  // Persists every computed auto-layout slot back into the diagram's own
+  // stored node positions, instead of leaving them as a purely visual,
+  // render-time-only override — so a node's stored position is never
+  // stale relative to where it's actually drawn. Two things fall out of
+  // that for free: toggling auto-layout off leaves every child exactly
+  // where it last visually sat (free one-shot alignment, then back to
+  // manual placement) rather than snapping to some older stored value,
+  // and dragging a node no longer has a stale position to snap back to
+  // once released. Runs whenever the computed slots actually change —
+  // the container's own layout mode is toggled, a child is added,
+  // removed, resized, or reordered — and skips whichever node is
+  // *currently* being dragged, since onNodeDrag is already keeping that
+  // one's stored position live via the cursor; its own slot gets synced
+  // the instant the drag stops and this effect sees it excluded no more.
+  useEffect(() => {
+    for (const [id, pos] of autoLayoutPositions) {
+      if (id === draggedNodeId) continue;
+      const node = diagram.nodes.find((n) => n.id === id);
+      if (node && (node.position.x !== pos.x || node.position.y !== pos.y)) {
+        updateNode(id, { position: pos });
+      }
+    }
+  }, [autoLayoutPositions, draggedNodeId, diagram.nodes, updateNode]);
 
   // Absolute (canvas-space) position of every visible node, resolved by
   // walking down from each root — nested nodes' own `position` is only
@@ -236,6 +266,12 @@ export function DiagramCanvas() {
         // instead of ever treating this as a selected node).
         draggable: false,
         selectable: false,
+        // Without an explicit zIndex, an anchor's default stacking could
+        // still lose to a nearby edge (React Flow elevates an edge's own
+        // z-index on hover/selection) and render *behind* it, hiding the
+        // actor icon under the line passing through the same point —
+        // pin it high enough to always paint on top of any edge.
+        zIndex: 1000,
       });
     }
     return anchors;
@@ -252,9 +288,12 @@ export function DiagramCanvas() {
     return rfEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
   }, [rfEdges, allRfNodes]);
 
-  const onNodeDragStart: OnNodeDrag<GraphNodeType> = useCallback(() => {
-    setNodeDragging(true);
-  }, [setNodeDragging]);
+  const onNodeDragStart: OnNodeDrag<GraphNodeType> = useCallback(
+    (_event, node) => {
+      setDraggedNodeId(node.id);
+    },
+    [setDraggedNodeId],
+  );
 
   // We render nodes as a fully controlled prop (no onNodesChange wired up),
   // so React Flow has no mechanism of its own to move a node on screen
@@ -280,7 +319,7 @@ export function DiagramCanvas() {
   // the parent-chain math ourselves.
   const onNodeDragStop: OnNodeDrag<GraphNodeType> = useCallback(
     (_event, node) => {
-      setNodeDragging(false);
+      setDraggedNodeId(null);
 
       const draggedInternal = getInternalNode(node.id);
       if (!draggedInternal) {
@@ -342,7 +381,7 @@ export function DiagramCanvas() {
         updateNode(node.id, { position: node.position });
       }
     },
-    [updateNode, setNodeDragging, getInternalNode, diagram, effectiveGraph.visibleNodes, sizes],
+    [updateNode, setDraggedNodeId, getInternalNode, diagram, effectiveGraph.visibleNodes, sizes],
   );
 
   const onConnectEnd: OnConnectEnd = useCallback(

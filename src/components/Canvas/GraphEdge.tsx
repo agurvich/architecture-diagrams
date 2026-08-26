@@ -49,8 +49,8 @@ export function GraphEdge({
   // must not happen mid-drag, or it corrupts React Flow's hit-testing for
   // the handle under the cursor and defeats live node-position tracking.
   const connectionInProgress = useConnection((c) => c.inProgress);
-  const isNodeDragging = useDiagramStore((s) => s.isNodeDragging);
-  const hoverFrozen = connectionInProgress || isNodeDragging;
+  const draggedNodeId = useDiagramStore((s) => s.draggedNodeId);
+  const hoverFrozen = connectionInProgress || draggedNodeId !== null;
 
   if (!sourceNode || !targetNode || !data) return null;
 
