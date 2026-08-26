@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
   ConnectionMode,
@@ -429,6 +429,18 @@ export function DiagramCanvas() {
     setHover(null);
   }, [setHover]);
 
+  // React Flow fires onConnectEnd for EVERY connect-type pointer-up,
+  // including dragging an existing reconnectable edge's own endpoint —
+  // reconnect isn't a separate gesture from React Flow's point of view,
+  // it's the same connection drag with fromNode/toNode pinned to whichever
+  // end wasn't grabbed. Without this flag, onConnectEnd's "you just drew a
+  // brand new edge" flow below would fire a second time for every
+  // reconnect, on top of (and independent from) whatever onReconnect did
+  // or didn't do, producing a spurious extra edge — see onReconnectStart/
+  // onReconnectEnd wired on <ReactFlow> below, which bracket the exact
+  // span onConnectEnd's body runs in during a reconnect.
+  const isReconnectingRef = useRef(false);
+
   const onConnectEnd: OnConnectEnd = useCallback(
     (event, connectionState) => {
       // Mirrors onConnectStart: hoverFrozen only lifts once this handler
@@ -437,6 +449,7 @@ export function DiagramCanvas() {
       // stays stuck at whatever was hovered before the drag began until
       // the next real mouseenter/leave.
       setHover(null);
+      if (isReconnectingRef.current) return;
       if (!connectionState.isValid || !connectionState.fromNode || !connectionState.toNode) return;
       const sourceId = connectionState.fromNode.id;
       const targetId = connectionState.toNode.id;
@@ -458,21 +471,32 @@ export function DiagramCanvas() {
   );
 
   // Dragging an existing (reconnectable, see rfEdges above) edge's own
-  // endpoint onto a different node/anchor reassigns it in place instead
-  // of forcing a delete-and-recreate — how a misattributed trigger gets
-  // pointed at the right action's anchor, or any edge gets re-aimed. The
-  // no-op guard matters specifically for a substituted endpoint (edge
+  // endpoint onto a different node/anchor/handle reassigns it in place
+  // instead of forcing a delete-and-recreate — how a misattributed trigger
+  // gets pointed at the right action's anchor, an edge gets re-aimed at a
+  // different node, or just moved to a different side of the same node.
+  // The no-op guard matters specifically for a substituted endpoint (edge
   // rendered against a collapsed ancestor): dropping back without
-  // actually moving it would otherwise fire with the SAME
-  // source/target the edge already rendered with (the collapsed
-  // ancestor's id) and silently overwrite the raw edge's real child
-  // endpoint with that ancestor's id — only write when something
-  // actually changed.
+  // actually moving it would otherwise fire with the SAME source/target/
+  // handles the edge already rendered with (the collapsed ancestor's id)
+  // and silently overwrite the raw edge's real child endpoint with that
+  // ancestor's id — only write when something actually changed. Handles
+  // are part of that comparison (not just source/target node ids) so a
+  // same-node, different-handle drag — e.g. moving the anchor from north
+  // to east on the node it's already attached to — still counts as a real
+  // change and gets written, instead of being silently swallowed.
   const onReconnect: OnReconnect<GraphEdgeType> = useCallback(
     (oldEdge, newConnection) => {
       if (!oldEdge.data || oldEdge.data.count !== 1) return;
       if (!newConnection.source || !newConnection.target) return;
-      if (newConnection.source === oldEdge.source && newConnection.target === oldEdge.target) return;
+      if (
+        newConnection.source === oldEdge.source &&
+        newConnection.target === oldEdge.target &&
+        newConnection.sourceHandle === oldEdge.sourceHandle &&
+        newConnection.targetHandle === oldEdge.targetHandle
+      ) {
+        return;
+      }
       const rawEdgeId = oldEdge.data.originalEdgeIds[0];
       updateEdge(rawEdgeId, {
         sourceId: newConnection.source,
@@ -720,6 +744,12 @@ export function DiagramCanvas() {
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
         onReconnect={onReconnect}
+        onReconnectStart={() => {
+          isReconnectingRef.current = true;
+        }}
+        onReconnectEnd={() => {
+          isReconnectingRef.current = false;
+        }}
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
