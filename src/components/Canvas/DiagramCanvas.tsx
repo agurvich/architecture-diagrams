@@ -1,6 +1,7 @@
-import { Background, ConnectionMode, Controls, ReactFlow } from '@xyflow/react';
+import { Background, ConnectionMode, Controls, ReactFlow, ViewportPortal } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useDiagramStore } from '../../store/diagramStore';
+import { REGION_GAP_X, UNCLASSIFIED_REGION } from '../../engine/nodeLens';
 import { useEffectiveRenderGraph } from './hooks/useEffectiveRenderGraph';
 import { useCanvasNodesAndEdges } from './hooks/useCanvasNodesAndEdges';
 import { useNodeDragAndReparent } from './hooks/useNodeDragAndReparent';
@@ -20,7 +21,7 @@ export function DiagramCanvas() {
   const multiSelectedNodeIds = useDiagramStore((s) => s.multiSelectedNodeIds);
   const multiSelectedEdgeIds = useDiagramStore((s) => s.multiSelectedEdgeIds);
 
-  const { diagram, effectiveGraph, sizes, orderedNodes, positionOf, absolutePositions, editingFrame } =
+  const { diagram, effectiveGraph, sizes, orderedNodes, positionOf, absolutePositions, editingFrame, nodeLensKey, nodeLensRegions } =
     useEffectiveRenderGraph();
 
   const { allRfNodes, visibleRfEdges } = useCanvasNodesAndEdges({
@@ -109,6 +110,23 @@ export function DiagramCanvas() {
       >
         <Background />
         <Controls />
+        {nodeLensKey && (
+          <ViewportPortal>
+            {nodeLensRegions.map((region, colIdx) => (
+              <div
+                key={region.value}
+                className="pointer-events-none absolute rounded-full border bg-popover px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-muted-foreground uppercase tracking-wide"
+                // Centered over the column (its nodes stack at x = colIdx *
+                // REGION_GAP_X, LEAF_SIZE.width wide) and pinned just above
+                // its topmost node — mirrors how engine/nodeLens.ts stacks
+                // roots starting at y=0 within a column.
+                style={{ transform: `translate(${colIdx * REGION_GAP_X + 85}px, -46px) translate(-50%, 0)` }}
+              >
+                {region.value === UNCLASSIFIED_REGION ? 'Unclassified' : region.value}
+              </div>
+            ))}
+          </ViewportPortal>
+        )}
       </ReactFlow>
       {editingFrame && (
         <div className="pointer-events-none absolute top-2.5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md">

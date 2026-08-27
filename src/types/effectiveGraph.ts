@@ -26,6 +26,23 @@ export interface EffectiveNode {
   linkedEdgeId?: string;
   dimmed: boolean;
   highlighted: boolean;
+  /**
+   * Set only while node-lens grouping is active (see engine/nodeLens.ts):
+   * this node is a bundle root with no value for the active lens key
+   * anywhere in its own ancestor chain, so it's been placed in the
+   * "Unclassified" region and dimmed rather than force-sorted into a group
+   * it doesn't belong to.
+   */
+  lensUnclassified?: boolean;
+  /**
+   * Set on any visible container (bundle root or not) whose subtree isn't
+   * fully intact under it while node-lens grouping is active — some
+   * descendant, however deep, carries its own explicit tag and has been
+   * pulled out to render independently elsewhere. `visible` counts
+   * descendants still actually nested here; `total` is the full raw
+   * descendant count, same one the plain "N nodes" badge already uses.
+   */
+  lensBundle?: { visible: number; total: number };
 }
 
 export interface EffectiveEdge {

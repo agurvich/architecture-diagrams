@@ -76,6 +76,13 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
     NODE_BASE,
     `graph-node--${data.renderMode}`,
     data.renderMode === 'collapsed-group' && 'border-2 bg-muted/60',
+    // A collapsed group is normally solid-border — dashed here specifically
+    // flags "this bundle isn't its normal complete self" (see
+    // engine/nodeLens.ts): some descendant, however deep, carries its own
+    // lens tag and has been pulled out to render independently elsewhere.
+    // An expanded container is already dashed unconditionally, so it only
+    // needs the fraction badge below, not an extra visual cue here.
+    data.renderMode === 'collapsed-group' && data.lensBundle && 'border-dashed',
     data.renderMode === 'expanded-container' && 'flex-col items-stretch rounded-lg border-2 border-dashed bg-muted/30 p-0',
     data.dimmed && 'graph-node--dimmed opacity-25',
     data.highlighted && 'graph-node--highlighted shadow-[0_0_0_2px_theme(colors.amber.500)]',
@@ -264,6 +271,14 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
                   ▾
                 </button>
                 <span className="graph-node__label overflow-hidden text-ellipsis">{data.label}</span>
+                {data.lensBundle && (
+                  <span
+                    className="graph-node__badge whitespace-nowrap rounded-full border px-1.5 py-px text-[10px] font-normal text-muted-foreground"
+                    title={`${data.lensBundle.visible} of ${data.lensBundle.total} still nested here — the rest have their own lens tag`}
+                  >
+                    {data.lensBundle.visible}/{data.lensBundle.total}
+                  </span>
+                )}
               </div>
             </div>
             {handles}
@@ -302,8 +317,11 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
             )}
             <span className="graph-node__label overflow-hidden text-ellipsis">{data.label}</span>
             {data.renderMode === 'collapsed-group' && data.collapsedChildIds && (
-              <span className="graph-node__badge whitespace-nowrap rounded-full border px-1.5 py-px text-[10px] text-muted-foreground">
-                {data.collapsedChildIds.length} nodes
+              <span
+                className="graph-node__badge whitespace-nowrap rounded-full border px-1.5 py-px text-[10px] text-muted-foreground"
+                title={data.lensBundle ? `${data.lensBundle.visible} of ${data.lensBundle.total} still nested here — the rest have their own lens tag` : undefined}
+              >
+                {data.lensBundle ? `${data.lensBundle.visible}/${data.lensBundle.total}` : `${data.collapsedChildIds.length} nodes`}
               </span>
             )}
           </div>

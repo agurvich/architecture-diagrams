@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useDiagramStore } from '../../../store/diagramStore';
 import { computeEffectiveGraph } from '../../../engine/computeEffectiveGraph';
 import { computeAutoLayoutPositions, computeContainerSizes, topoSort } from '../../../engine/containerLayout';
+import { applyNodeLens } from '../../../engine/nodeLens';
 import type { EffectiveNode } from '../../../types/effectiveGraph';
 
 /**
@@ -21,6 +22,7 @@ export function useEffectiveRenderGraph() {
   const diagram = useDiagramStore((s) => s.diagram);
   const activeSets = useDiagramStore((s) => s.activeSets);
   const expandedNodes = useDiagramStore((s) => s.expandedNodes);
+  const nodeLensKey = useDiagramStore((s) => s.nodeLensKey);
   const hoverTarget = useDiagramStore((s) => s.hoverTarget);
   const currentFrameId = useDiagramStore((s) => s.currentFrameId);
   const editingHighlightsForFrameId = useDiagramStore((s) => s.editingHighlightsForFrameId);
@@ -44,8 +46,24 @@ export function useEffectiveRenderGraph() {
     [diagram, activeSets, expandedNodes, hoverTarget, currentFrame, editingFrame],
   );
 
-  const sizes = useMemo(() => computeContainerSizes(effectiveGraph.visibleNodes), [effectiveGraph.visibleNodes]);
-  const orderedNodes = useMemo(() => topoSort(effectiveGraph.visibleNodes), [effectiveGraph.visibleNodes]);
+  // Repositions node-lens bundle roots into their region columns (see
+  // engine/nodeLens.ts), leaving every other node's parentId/position
+  // exactly as computeEffectiveGraph produced it — a no-op passthrough
+  // when no lens is active. Applied here, before sizes/order/positions are
+  // derived, so everything downstream (container auto-sizing, auto-layout
+  // stacking, absolute positions, React Flow's own nesting) picks up the
+  // lens-adjusted tree for free instead of needing its own special case.
+  const nodeLens = useMemo(
+    () => applyNodeLens(effectiveGraph.visibleNodes, diagram, nodeLensKey),
+    [effectiveGraph.visibleNodes, diagram, nodeLensKey],
+  );
+  const lensAdjustedGraph = useMemo(
+    () => ({ visibleNodes: nodeLens.nodes, visibleEdges: effectiveGraph.visibleEdges }),
+    [nodeLens.nodes, effectiveGraph.visibleEdges],
+  );
+
+  const sizes = useMemo(() => computeContainerSizes(lensAdjustedGraph.visibleNodes), [lensAdjustedGraph.visibleNodes]);
+  const orderedNodes = useMemo(() => topoSort(lensAdjustedGraph.visibleNodes), [lensAdjustedGraph.visibleNodes]);
 
   // Position overrides for children of an auto-layout container (Figma-
   // style stacked row/column instead of freeform placement). Only the
@@ -63,8 +81,8 @@ export function useEffectiveRenderGraph() {
   // changes during the drag, since it's still included as an input to
   // their computed slots, just not given one of its own.
   const autoLayoutPositions = useMemo(
-    () => computeAutoLayoutPositions(effectiveGraph.visibleNodes, sizes, draggedNodeId ?? undefined),
-    [effectiveGraph.visibleNodes, sizes, draggedNodeId],
+    () => computeAutoLayoutPositions(lensAdjustedGraph.visibleNodes, sizes, draggedNodeId ?? undefined),
+    [lensAdjustedGraph.visibleNodes, sizes, draggedNodeId],
   );
   const positionOf = useCallback((n: EffectiveNode) => autoLayoutPositions.get(n.id) ?? n.position, [autoLayoutPositions]);
 
@@ -105,5 +123,19 @@ export function useEffectiveRenderGraph() {
     return map;
   }, [orderedNodes, positionOf]);
 
-  return { diagram, effectiveGraph, sizes, orderedNodes, positionOf, absolutePositions, editingFrame };
+  return {
+    diagram,
+    // The lens-adjusted graph, not the raw one computeEffectiveGraph
+    // produced — every other consumer of "effectiveGraph" (canvas
+    // node/edge construction, drag/reparent, bulk actions) wants whatever
+    // is actually on screen right now, lens included.
+    effectiveGraph: lensAdjustedGraph,
+    sizes,
+    orderedNodes,
+    positionOf,
+    absolutePositions,
+    editingFrame,
+    nodeLensKey,
+    nodeLensRegions: nodeLens.regions,
+  };
 }

@@ -9,6 +9,7 @@ import { ICON_OPTIONS, getIconComponent } from '../../../icons/registry';
 import { guessIconKey } from '../../../icons/iconMatcher';
 import { DEFAULT_AUTO_LAYOUT_GAP } from '../../../engine/containerLayout';
 import { wouldCreateCycle } from '../../../utils/nodeTree';
+import { getMetadataValuesByKey } from '../../../utils/metadataKeys';
 import { PanelHeader } from '../../shared/PanelHeader';
 
 const DEFAULT_COLOR = '#98a2b3';
@@ -41,18 +42,7 @@ export function NodePropertiesPanel({ nodeId }: { nodeId: NodeId }) {
   // "new entry" fields can offer them via a native <datalist> — picking an
   // existing key from the list instead of retyping it is what keeps
   // "type" from silently forking into "type"/"types" across nodes.
-  const valuesByKey = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const n of nodes) {
-      for (const [k, v] of Object.entries(n.metadata)) {
-        if (!v) continue;
-        const list = map.get(k) ?? [];
-        if (!list.includes(v)) list.push(v);
-        map.set(k, list);
-      }
-    }
-    return map;
-  }, [nodes]);
+  const valuesByKey = useMemo(() => getMetadataValuesByKey(nodes), [nodes]);
   const allMetadataKeys = useMemo(() => [...valuesByKey.keys()].sort(), [valuesByKey]);
 
   if (!node) return null;

@@ -3,6 +3,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { DiagramCanvas } from './components/Canvas/DiagramCanvas';
 import { EdgeSetTogglePanel } from './components/Panels/EdgeSetTogglePanel';
+import { NodeLensPanel } from './components/Panels/NodeLensPanel';
 import { HierarchyPanel } from './components/Panels/HierarchyPanel';
 import { FrameSequencerPanel } from './components/Panels/FrameSequencerPanel';
 import { FramePlayerControls } from './components/Panels/FramePlayerControls';
@@ -73,6 +74,9 @@ function App() {
                       of it ever reaching this div's overflow-y-auto. */}
                   <div className="shrink-0">
                     <EdgeSetTogglePanel />
+                  </div>
+                  <div className="shrink-0">
+                    <NodeLensPanel />
                   </div>
                   <div className="shrink-0">
                     <HierarchyPanel />

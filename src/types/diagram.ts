@@ -78,6 +78,8 @@ export interface Frame {
   expandedNodes: NodeId[];
   highlighted?: (NodeId | EdgeId)[];
   notes: string;
+  /** The metadata key node-lens grouping was grouping by, if any (see engine/nodeLens.ts) — undefined means "no grouping" the same way it does live. */
+  nodeLensKey?: string;
 }
 
 export interface Diagram {

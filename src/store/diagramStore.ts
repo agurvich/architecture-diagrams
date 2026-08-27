@@ -41,6 +41,8 @@ interface DiagramStore {
   diagram: Diagram;
   activeSets: Set<EdgeSetId>;
   expandedNodes: Set<NodeId>;
+  /** The metadata key node-lens grouping is currently grouping by, if any (see engine/nodeLens.ts) — null means "off", the normal nested view. */
+  nodeLensKey: string | null;
   hoverTarget: HoverTarget | null;
   selected: SelectedElement | null;
   /** Nodes selected via React Flow's own marquee (shift-drag) box-select. */
@@ -85,6 +87,7 @@ interface DiagramStore {
   expandNodes: (nodeIds: NodeId[]) => void;
   /** Removes nodeIds from expandedNodes — the collapse counterpart to expandNodes, for recursive "collapse all". */
   collapseNodes: (nodeIds: NodeId[]) => void;
+  setNodeLensKey: (key: string | null) => void;
   setHover: (t: HoverTarget | null) => void;
   select: (sel: SelectedElement | null) => void;
   setMultiSelectedNodeIds: (ids: Set<NodeId>) => void;
@@ -183,6 +186,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     diagram: initialDiagram,
     activeSets: defaultActiveSets(initialDiagram),
     expandedNodes: new Set(),
+    nodeLensKey: null,
     hoverTarget: null,
     selected: null,
     multiSelectedNodeIds: new Set(),
@@ -204,6 +208,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         diagram,
         activeSets: defaultActiveSets(diagram),
         expandedNodes: new Set(),
+        nodeLensKey: null,
         hoverTarget: null,
         selected: null,
         multiSelectedNodeIds: new Set(),
@@ -246,6 +251,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         diagram,
         activeSets: defaultActiveSets(diagram),
         expandedNodes: new Set(),
+        nodeLensKey: null,
         hoverTarget: null,
         selected: null,
         multiSelectedNodeIds: new Set(),
@@ -289,6 +295,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         return { expandedNodes: next };
       }),
 
+    setNodeLensKey: (key) => set({ nodeLensKey: key }),
     setHover: (t) => set({ hoverTarget: t }),
     // A specific single selection (click, context menu, duplicate, etc.)
     // always supersedes any prior marquee multi-selection — otherwise a
@@ -533,6 +540,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         notes,
         activeSets: [...state.activeSets],
         expandedNodes: [...state.expandedNodes],
+        nodeLensKey: state.nodeLensKey ?? undefined,
         // Starts with nothing spotlighted — `selected.id` here would be an
         // *effective* id (e.g. `merged:a=>b` for an edge), not one of the
         // raw node/edge ids `highlighted` and its resolution in
@@ -570,6 +578,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         currentFrameId: id,
         activeSets: new Set(frame.activeSets),
         expandedNodes: new Set(frame.expandedNodes),
+        nodeLensKey: frame.nodeLensKey ?? null,
       });
     },
 

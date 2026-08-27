@@ -41,6 +41,11 @@ export const seedDiagram: Diagram = {
     { id: 'dataflow', name: 'Data Flow', color: '#f7924f' },
   ],
   nodes: [
+    // No permissionScope tag on purpose — it's outside every AWS account
+    // boundary, so "which permission scope" doesn't really apply to it.
+    // Grouping by permissionScope should show this as the "unclassified"
+    // bundle: moved aside and dimmed, not force-labeled into a scope it
+    // doesn't belong to.
     { id: 'source', label: 'USASpending.gov', position: { x: -250, y: 380 }, metadata: { type: 'external' }, color: '#98a2b3' },
     { id: 'list-files-endpoint', label: 'list_files', parentId: 'source', position: { x: 20, y: 40 }, metadata: { type: 'endpoint' } },
     { id: 'batch-download-endpoint', label: 'batch_download', parentId: 'source', position: { x: 20, y: 114 }, metadata: { type: 'endpoint' } },
@@ -52,7 +57,7 @@ export const seedDiagram: Diagram = {
       id: 'account-processing',
       label: 'Acquisition Account',
       position: { x: 50, y: 40 },
-      metadata: { type: 'aws-account' },
+      metadata: { type: 'aws-account', permissionScope: 'acquisition-account' },
       color: '#64748b',
     },
     {
@@ -90,12 +95,21 @@ export const seedDiagram: Diagram = {
     { id: 'clean-bucket', label: 'Clean Bucket', parentId: 'account-processing', position: { x: 900, y: 380 }, metadata: { type: 's3' }, color: '#38b06a' },
     { id: 'quarantine-bucket', label: 'Quarantine Bucket', parentId: 'account-processing', position: { x: 900, y: 620 }, metadata: { type: 's3' }, color: '#e0475a' },
 
+    // The three IAM roles below deliberately carry a *different*
+    // permissionScope than the AWS account box they're structurally nested
+    // in — "who can act as what" is a security-review question that cuts
+    // across account boundaries, not one that respects them, which is
+    // exactly the case node-lens grouping (see engine/nodeLens.ts) exists
+    // to make visible: grouping by permissionScope pulls all four IAM roles
+    // in this diagram (three here, plus Viz Tools Role in the other
+    // account below) into one shared "iam-security" region, regardless of
+    // which AWS account each one structurally lives in.
     {
       id: 'internet-role',
       label: 'Internet Ingest Role',
       parentId: 'account-processing',
       position: { x: 20, y: 650 },
-      metadata: { type: 'iam-role' },
+      metadata: { type: 'iam-role', permissionScope: 'iam-security' },
       color: '#f7b500',
       isActor: true,
     },
@@ -104,7 +118,7 @@ export const seedDiagram: Diagram = {
       label: 'Step Function Role',
       parentId: 'account-processing',
       position: { x: 300, y: 650 },
-      metadata: { type: 'iam-role' },
+      metadata: { type: 'iam-role', permissionScope: 'iam-security' },
       color: '#f7b500',
       isActor: true,
     },
@@ -113,7 +127,7 @@ export const seedDiagram: Diagram = {
       label: 'AV Scan Role',
       parentId: 'account-processing',
       position: { x: 900, y: 850 },
-      metadata: { type: 'iam-role' },
+      metadata: { type: 'iam-role', permissionScope: 'iam-security' },
       color: '#f7b500',
       isActor: true,
     },
@@ -122,7 +136,7 @@ export const seedDiagram: Diagram = {
       id: 'account-ingest',
       label: 'Viz Tools Account',
       position: { x: 1400, y: 400 },
-      metadata: { type: 'aws-account' },
+      metadata: { type: 'aws-account', permissionScope: 'viztools-account' },
       color: '#64748b',
     },
     { id: 'ingest-bucket', label: 'Ingest Bucket', parentId: 'account-ingest', position: { x: 20, y: 40 }, metadata: { type: 's3' }, color: '#38b06a' },
@@ -132,7 +146,7 @@ export const seedDiagram: Diagram = {
       label: 'Viz Tools Role',
       parentId: 'account-ingest',
       position: { x: 20, y: 140 },
-      metadata: { type: 'iam-role' },
+      metadata: { type: 'iam-role', permissionScope: 'iam-security' },
       color: '#f7b500',
       isActor: true,
     },
