@@ -141,6 +141,7 @@ export function applyNodeLens(
     if (isRoot(n.id)) {
       patch.position = rootPosition.get(n.id)!;
       patch.lensUnclassified = !(nodeById.get(n.id)?.metadata[lensKey]);
+      patch.lensDetached = true;
     }
     return Object.keys(patch).length > 0 ? { ...n, ...patch } : n;
   });

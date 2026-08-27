@@ -114,6 +114,34 @@ test('turning the lens back off restores the normal nested layout and plain coun
   expect(after).toEqual(before);
 });
 
+test('a lens-detached bundle root cannot be dragged (its position is a computed slot, not draggable state)', async ({ page }) => {
+  // Regression: onNodeDrag writes the live drag position straight into the
+  // diagram's stored position (see useNodeDragAndReparent.ts). For a
+  // lens-detached node — parentId cleared for rendering, but its true
+  // stored parentId is still whatever it always was — that write would
+  // land in the wrong coordinate space the instant the lens turns back
+  // off. The fix is disabling drag entirely for a lens-detached node
+  // (EffectiveNode.lensDetached), not just relying on the render snapping
+  // back — this confirms no mutation happens at all, not merely that the
+  // node "looks" unmoved.
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Acquisition Account' }).locator('.graph-node__chevron').click();
+  await page.getByTitle('Group nodes into regions by a metadata key').selectOption('permissionScope');
+
+  const role = page.locator('[data-id="internet-role"]');
+  const before = await nodeTransform(page, 'internet-role');
+  const box = (await role.boundingBox())!;
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 150, box.y + 100, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+
+  expect(await nodeTransform(page, 'internet-role')).toEqual(before);
+  const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
+  expect(raw).toBeNull(); // no mutation at all, not even a silently-wrong one
+});
+
 test('a saved frame remembers the active node lens and restores it on playback', async ({ page }) => {
   await page.getByTitle('Group nodes into regions by a metadata key').selectOption('permissionScope');
 

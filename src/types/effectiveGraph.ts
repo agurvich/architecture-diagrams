@@ -43,6 +43,16 @@ export interface EffectiveNode {
    * descendant count, same one the plain "N nodes" badge already uses.
    */
   lensBundle?: { visible: number; total: number };
+  /**
+   * True for a bundle root while node-lens grouping is active — its
+   * position is a computed region-column slot, not something dragging
+   * should be able to touch: React Flow's controlled position prop is only
+   * ever relative to whatever parent a node has *right now*, so writing a
+   * live drag position while detached (parentId cleared) would land in the
+   * wrong coordinate space the moment the lens turns back off and the real
+   * parentId governs it again. See useNodeDragAndReparent's draggable prop.
+   */
+  lensDetached?: boolean;
 }
 
 export interface EffectiveEdge {

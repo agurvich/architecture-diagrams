@@ -62,7 +62,9 @@ export function useCanvasNodesAndEdges({
           style: { width: size.width, height: size.height },
           width: size.width,
           height: size.height,
-          draggable: true,
+          // A lens-detached bundle root's position is a computed region
+          // slot, not draggable state — see EffectiveNode.lensDetached.
+          draggable: !n.lensDetached,
           // Feeds our own selection state back to React Flow so its
           // marquee (shift-drag) box-select and Delete/Backspace key
           // handling both have something to act on — without this, a
