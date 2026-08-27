@@ -13,10 +13,21 @@ interface Params {
   visibleEdges: EffectiveEdge[];
   absolutePositions: Map<string, { x: number; y: number }>;
   sizes: Map<string, Size>;
+  /**
+   * When set, `absolutePositions` reflects node-lens region slots rather
+   * than the real structural tree (see engine/nodeLens.ts) — every node's
+   * ancestor chain passes through at least one lens-detached bundle root
+   * whenever a lens is active (a top-level node is always its own bundle
+   * root), so there's no subset of the canvas position math stays safe
+   * for. handleWrapInContainer refuses to run in that case: writing those
+   * positions into the diagram's real, persisted state would look fine
+   * while the lens stays on and then be garbled the moment it turns off.
+   */
+  nodeLensKey: string | null;
 }
 
 /** The floating action-bar operations available once 2+ nodes or edges are multi-selected. */
-export function useBulkActions({ diagram, visibleEdges, absolutePositions, sizes }: Params) {
+export function useBulkActions({ diagram, visibleEdges, absolutePositions, sizes, nodeLensKey }: Params) {
   const multiSelectedNodeIds = useDiagramStore((s) => s.multiSelectedNodeIds);
   const setMultiSelectedNodeIds = useDiagramStore((s) => s.setMultiSelectedNodeIds);
   const multiSelectedEdgeIds = useDiagramStore((s) => s.multiSelectedEdgeIds);
@@ -40,6 +51,7 @@ export function useBulkActions({ diagram, visibleEdges, absolutePositions, sizes
   // or the root if the selection spans more than one (mixed-depth
   // selections all promote to a single new top-level frame together).
   const handleWrapInContainer = useCallback(() => {
+    if (nodeLensKey) return;
     const ids = [...multiSelectedNodeIds];
     if (ids.length < 2) return;
 
@@ -81,6 +93,7 @@ export function useBulkActions({ diagram, visibleEdges, absolutePositions, sizes
     setMultiSelectedNodeIds(new Set());
     select({ kind: 'node', id: containerId });
   }, [
+    nodeLensKey,
     multiSelectedNodeIds,
     absolutePositions,
     sizes,

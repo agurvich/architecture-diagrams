@@ -68,6 +68,17 @@ test('region header labels name every group, "Unclassified" last', async ({ page
   await expect(page.getByText('iam-security', { exact: true })).toHaveCount(0);
 });
 
+test('a vertical divider separates each pair of adjacent regions, one fewer than the region count', async ({ page }) => {
+  await page.getByTitle('Group nodes into regions by a metadata key').selectOption('permissionScope');
+  // 3 regions visible before anything is expanded (acquisition-account,
+  // viztools-account, unclassified — iam-security has no visible members
+  // yet) — 2 dividers, one between each adjacent pair.
+  await expect(page.locator('.react-flow__viewport-portal .bg-border')).toHaveCount(2);
+
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Acquisition Account' }).locator('.graph-node__chevron').click();
+  await expect(page.locator('.react-flow__viewport-portal .bg-border')).toHaveCount(3);
+});
+
 test('expanding an account reveals its extracted IAM role and an "iam-security" region appears', async ({ page }) => {
   await page.getByTitle('Group nodes into regions by a metadata key').selectOption('permissionScope');
   await expect(page.getByText('iam-security', { exact: true })).toHaveCount(0);
@@ -140,6 +151,47 @@ test('a lens-detached bundle root cannot be dragged (its position is a computed 
   expect(await nodeTransform(page, 'internet-role')).toEqual(before);
   const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
   expect(raw).toBeNull(); // no mutation at all, not even a silently-wrong one
+});
+
+test('marquee-selecting lens-detached nodes disables "Wrap in container" instead of letting it corrupt positions', async ({ page }) => {
+  // Same underlying hazard as the drag test above, for a different write
+  // path: handleWrapInContainer computes new positions from
+  // absolutePositions, which reflects lens region slots whenever a lens is
+  // active. Writing those into the diagram's real parentId/position would
+  // look fine while the lens stays on and then be garbled the moment it
+  // turns off — so the action refuses to run at all while a lens is
+  // active, and the button reflects that instead of silently no-op'ing.
+  await page.locator('.graph-node--collapsed-group', { hasText: 'Acquisition Account' }).locator('.graph-node__chevron').click();
+  await page.getByTitle('Group nodes into regions by a metadata key').selectOption('permissionScope');
+
+  const roleA = page.locator('[data-id="internet-role"]');
+  const roleB = page.locator('[data-id="avscan-role"]');
+  const boxA = (await roleA.boundingBox())!;
+  const boxB = (await roleB.boundingBox())!;
+  const minX = Math.min(boxA.x, boxB.x) - 20;
+  const minY = Math.min(boxA.y, boxB.y) - 20;
+  const maxX = Math.max(boxA.x + boxA.width, boxB.x + boxB.width) + 20;
+  const maxY = Math.max(boxA.y + boxA.height, boxB.y + boxB.height) + 20;
+
+  await page.keyboard.down('Shift');
+  await page.mouse.move(minX, minY);
+  await page.mouse.down();
+  await page.mouse.move(maxX, maxY, { steps: 10 });
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+
+  await expect(page.getByText('2 nodes selected')).toBeVisible();
+  const wrapButton = page.getByRole('button', { name: 'Wrap in container' });
+  await expect(wrapButton).toBeDisabled();
+  await expect(wrapButton).toHaveAttribute('title', /Turn off node-lens grouping first/);
+
+  // Belt and suspenders: the handler itself refuses to run too, not just
+  // the disabled attribute — dispatch a real click past it and confirm
+  // still zero mutation.
+  await wrapButton.evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
+  await page.waitForTimeout(200);
+  const raw = await page.evaluate(() => localStorage.getItem('architecture-diagrams:working-diagram'));
+  expect(raw).toBeNull();
 });
 
 test('a saved frame remembers the active node lens and restores it on playback', async ({ page }) => {

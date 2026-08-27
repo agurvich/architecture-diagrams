@@ -1,5 +1,5 @@
-import type { Diagram, NodeId } from '../types/diagram';
-import type { EffectiveNode } from '../types/effectiveGraph';
+import type { Diagram, DiagramNode, NodeId } from '../types/diagram';
+import type { EffectiveEdge, EffectiveNode } from '../types/effectiveGraph';
 import { buildAncestryIndex, getDescendants } from './ancestry';
 import { LEAF_SIZE, computeContainerSizes, type Size } from './containerLayout';
 
@@ -48,6 +48,68 @@ export function computeBundleRootOf(diagram: Diagram, lensKey: string): Map<Node
 }
 
 /**
+ * Orders each region's roots to reduce edge crossings against its
+ * immediate neighbor, via one left-to-right sweep of the standard
+ * barycenter heuristic: the first region stays in its seed (alphabetical)
+ * order as a fixed reference, and each subsequent region reorders its
+ * roots by the average (normalized) rank of whatever they connect to in
+ * the PREVIOUS region's already-finalized order — so an edge's two ends
+ * pull toward the same row instead of crossing diagonally. A one-directional
+ * sweep (rather than alternating passes to convergence) is enough to
+ * resolve the common case correctly, and avoids the failure mode of
+ * scoring every region simultaneously against a frozen snapshot: two
+ * regions that are each other's only neighbor would score identically in
+ * both directions and end up mirror-reversed together, leaving the actual
+ * crossing count unchanged. A root with no neighbors in the previous
+ * region keeps its seed rank as its own fallback barycenter; ties break by
+ * label, so the result stays fully deterministic.
+ */
+function orderRegionsByBarycenter(
+  regionValues: string[],
+  rootsByRegion: Map<string, NodeId[]>,
+  visibleEdges: EffectiveEdge[],
+  bundleRootOf: Map<NodeId, NodeId>,
+  nodeById: Map<NodeId, DiagramNode>,
+): Map<string, NodeId[]> {
+  const neighborsOf = new Map<NodeId, NodeId[]>();
+  for (const e of visibleEdges) {
+    const a = bundleRootOf.get(e.visibleSourceId);
+    const b = bundleRootOf.get(e.visibleTargetId);
+    if (!a || !b || a === b) continue;
+    (neighborsOf.get(a) ?? neighborsOf.set(a, []).get(a)!).push(b);
+    (neighborsOf.get(b) ?? neighborsOf.set(b, []).get(b)!).push(a);
+  }
+
+  const rankOf = (list: NodeId[]) => {
+    const rank = new Map<NodeId, number>();
+    list.forEach((id, i) => rank.set(id, list.length > 1 ? i / (list.length - 1) : 0.5));
+    return rank;
+  };
+
+  const ordered = new Map<string, NodeId[]>();
+  let previousRank: Map<NodeId, number> | null = null;
+  for (const value of regionValues) {
+    const seed = rootsByRegion.get(value)!; // already alphabetical
+    if (!previousRank) {
+      ordered.set(value, seed);
+      previousRank = rankOf(seed);
+      continue;
+    }
+    const seedRank = rankOf(seed);
+    const scored = seed.map((id) => {
+      const ranks = (neighborsOf.get(id) ?? []).map((n) => previousRank!.get(n)).filter((r): r is number => r !== undefined);
+      const barycenter = ranks.length > 0 ? ranks.reduce((a, b) => a + b, 0) / ranks.length : seedRank.get(id)!;
+      return { id, barycenter };
+    });
+    scored.sort((a, b) => a.barycenter - b.barycenter || (nodeById.get(a.id)?.label ?? '').localeCompare(nodeById.get(b.id)?.label ?? ''));
+    const result = scored.map((s) => s.id);
+    ordered.set(value, result);
+    previousRank = rankOf(result);
+  }
+  return ordered;
+}
+
+/**
  * Repositions every visible node-lens bundle root into a region column by
  * its value for lensKey (or "Unclassified" if none), leaving every other
  * node's parentId/position untouched — an untagged descendant keeps
@@ -60,6 +122,7 @@ export function computeBundleRootOf(diagram: Diagram, lensKey: string): Map<Node
  */
 export function applyNodeLens(
   visibleNodes: EffectiveNode[],
+  visibleEdges: EffectiveEdge[],
   diagram: Diagram,
   lensKey: string | null,
 ): { nodes: EffectiveNode[]; regions: NodeLensRegion[] } {
@@ -106,7 +169,8 @@ export function applyNodeLens(
     if (b === UNCLASSIFIED_REGION) return -1;
     return a.localeCompare(b);
   });
-  const regions: NodeLensRegion[] = regionValues.map((value) => ({ value, rootIds: rootsByRegion.get(value)! }));
+  const orderedRootsByRegion = orderRegionsByBarycenter(regionValues, rootsByRegion, visibleEdges, bundleRootOf, nodeById);
+  const regions: NodeLensRegion[] = regionValues.map((value) => ({ value, rootIds: orderedRootsByRegion.get(value)! }));
 
   // Absolute position per bundle root: one column per region, left to
   // right in the same order as `regions`, stacked top to bottom within.

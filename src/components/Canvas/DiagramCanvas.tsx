@@ -47,6 +47,7 @@ export function DiagramCanvas() {
     visibleEdges: effectiveGraph.visibleEdges,
     absolutePositions,
     sizes,
+    nodeLensKey,
   });
 
   const {
@@ -112,6 +113,23 @@ export function DiagramCanvas() {
         <Controls />
         {nodeLensKey && (
           <ViewportPortal>
+            {/* One divider between each pair of adjacent regions, not
+                before the first — a fixed generous height rather than
+                measuring actual content, same pragmatic call the
+                editingFrame/multi-select banners already make elsewhere in
+                this file for things that don't need to track content
+                exactly. */}
+            {nodeLensRegions.slice(1).map((region, i) => (
+              <div
+                key={`divider-${region.value}`}
+                // Thin but not 1px: a hairline border color at true 1px
+                // width anti-aliases into near-invisibility once the
+                // canvas is zoomed out past ~70%, which fit-view usually
+                // lands well below for a diagram with several regions.
+                className="pointer-events-none absolute w-0.5 bg-border"
+                style={{ transform: `translate(${(i + 1) * REGION_GAP_X - REGION_GAP_X / 2}px, -80px)`, height: 3000 }}
+              />
+            ))}
             {nodeLensRegions.map((region, colIdx) => (
               <div
                 key={region.value}
@@ -145,8 +163,10 @@ export function DiagramCanvas() {
         <div className="pointer-events-none absolute top-2.5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md">
           <span>{multiSelectedNodeIds.size} nodes selected</span>
           <button
-            className="pointer-events-auto cursor-pointer rounded-full border-none bg-primary px-2 py-0.5 text-primary-foreground"
+            className="pointer-events-auto cursor-pointer rounded-full border-none bg-primary px-2 py-0.5 text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
             onClick={handleWrapInContainer}
+            disabled={Boolean(nodeLensKey)}
+            title={nodeLensKey ? 'Turn off node-lens grouping first — positions on screen right now are region slots, not real structure' : undefined}
           >
             Wrap in container
           </button>

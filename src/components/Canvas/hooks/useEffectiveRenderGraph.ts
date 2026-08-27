@@ -54,8 +54,8 @@ export function useEffectiveRenderGraph() {
   // stacking, absolute positions, React Flow's own nesting) picks up the
   // lens-adjusted tree for free instead of needing its own special case.
   const nodeLens = useMemo(
-    () => applyNodeLens(effectiveGraph.visibleNodes, diagram, nodeLensKey),
-    [effectiveGraph.visibleNodes, diagram, nodeLensKey],
+    () => applyNodeLens(effectiveGraph.visibleNodes, effectiveGraph.visibleEdges, diagram, nodeLensKey),
+    [effectiveGraph.visibleNodes, effectiveGraph.visibleEdges, diagram, nodeLensKey],
   );
   const lensAdjustedGraph = useMemo(
     () => ({ visibleNodes: nodeLens.nodes, visibleEdges: effectiveGraph.visibleEdges }),
