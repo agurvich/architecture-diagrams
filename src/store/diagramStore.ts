@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { CompassSide, Diagram, DiagramEdge, DiagramNode, EdgeId, EdgeSet, EdgeSetId, Frame, FrameId, NodeId } from '../types/diagram';
+import type { CompassSide, Diagram, DiagramEdge, DiagramNode, EdgeId, EdgeSet, EdgeSetId, Frame, FrameId, NodeId, StickyNote, StickyNoteId } from '../types/diagram';
 import type { HoverTarget, SelectedElement } from '../types/viewState';
 import { seedDiagram } from '../data/seedDiagram';
 import { DEFAULT_COLOR_PALETTE } from '../lib/colorPalette';
@@ -36,6 +36,9 @@ function normalizeDiagram(diagram: Diagram): Diagram {
 function defaultActiveSets(diagram: Diagram): Set<EdgeSetId> {
   return new Set(diagram.edgeSets.map((s) => s.id));
 }
+
+/** Soft pastel palette a new sticky note cycles through, evoking real Post-its rather than the diagram's own accent colors. */
+const STICKY_NOTE_COLORS = ['#fef08a', '#fbcfe8', '#bfdbfe', '#bbf7d0', '#fed7aa'];
 
 interface DiagramStore {
   diagram: Diagram;
@@ -158,6 +161,12 @@ interface DiagramStore {
   gotoFrame: (id: FrameId) => void;
   nextFrame: () => void;
   prevFrame: () => void;
+  /** Stops treating any frame as "currently playing" — back to "Not viewing a frame" — without touching activeSets/expandedNodes/nodeLensKey, which stay wherever that frame left them. */
+  exitFrameView: () => void;
+  /** Appends a new blank sticky note to a frame, cycling through STICKY_NOTE_COLORS by however many that frame already has. */
+  addStickyNote: (frameId: FrameId) => StickyNoteId;
+  updateStickyNote: (frameId: FrameId, noteId: StickyNoteId, patch: Partial<StickyNote>) => void;
+  deleteStickyNote: (frameId: FrameId, noteId: StickyNoteId) => void;
   setEditingHighlightsForFrame: (id: FrameId | null) => void;
   /**
    * Toggles a group of raw node/edge ids in a frame's highlighted list
@@ -597,6 +606,46 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
       const prevIdx = idx === -1 ? 0 : Math.max(idx - 1, 0);
       get().gotoFrame(diagram.frames[prevIdx].id);
     },
+
+    // Only clears currentFrameId — activeSets/expandedNodes/nodeLensKey
+    // stay wherever gotoFrame last left them, same as clicking Next/Prev
+    // never resets them either. Harmless no-op when nothing is playing.
+    exitFrameView: () => set({ currentFrameId: null }),
+
+    addStickyNote: (frameId) => {
+      const id = makeId('note');
+      persistAndSet(set, (diagram) => ({
+        ...diagram,
+        frames: diagram.frames.map((f) => {
+          if (f.id !== frameId) return f;
+          const existing = f.stickyNotes ?? [];
+          const color = STICKY_NOTE_COLORS[existing.length % STICKY_NOTE_COLORS.length];
+          // Staggered rather than stacked exactly on top of each other —
+          // just a starting point the author drags into place, not a
+          // meaningful final position.
+          const offset = (existing.length % 5) * 24;
+          const position = { x: 40 + offset, y: 40 + offset };
+          return { ...f, stickyNotes: [...existing, { id, text: '', color, position }] };
+        }),
+      }));
+      return id;
+    },
+
+    updateStickyNote: (frameId, noteId, patch) =>
+      persistAndSet(set, (diagram) => ({
+        ...diagram,
+        frames: diagram.frames.map((f) =>
+          f.id === frameId ? { ...f, stickyNotes: patchById(f.stickyNotes ?? [], noteId, patch) } : f,
+        ),
+      })),
+
+    deleteStickyNote: (frameId, noteId) =>
+      persistAndSet(set, (diagram) => ({
+        ...diagram,
+        frames: diagram.frames.map((f) =>
+          f.id === frameId ? { ...f, stickyNotes: (f.stickyNotes ?? []).filter((n) => n.id !== noteId) } : f,
+        ),
+      })),
 
     // Also jumps to the frame's own lens/expand state (like gotoFrame) so
     // clicks land on the same nodes/edges this frame will actually show

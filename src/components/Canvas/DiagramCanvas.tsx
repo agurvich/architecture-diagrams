@@ -12,6 +12,7 @@ import { GraphNode } from './GraphNode';
 import { GraphEdge } from './GraphEdge';
 import { ConnectionPopover } from './ConnectionPopover';
 import { PaneContextMenu } from './PaneContextMenu';
+import { StickyNotes } from './StickyNotes';
 
 const nodeTypes = { graphNode: GraphNode };
 const edgeTypes = { graphEdge: GraphEdge };
@@ -145,6 +146,7 @@ export function DiagramCanvas() {
             ))}
           </ViewportPortal>
         )}
+        <StickyNotes />
       </ReactFlow>
       {editingFrame && (
         <div className="pointer-events-none absolute top-2.5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md">

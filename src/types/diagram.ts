@@ -71,6 +71,24 @@ export interface EdgeSet {
   color: string;
 }
 
+export type StickyNoteId = string;
+
+/**
+ * A small draggable annotation card belonging to exactly one frame —
+ * unlike a frame's own single `notes` caption, a frame can carry several
+ * of these, each independently positioned, editable, and deletable.
+ * Rendered only while its owning frame is the one currently being viewed
+ * (see components/Canvas/StickyNotes.tsx), positioned in the same
+ * absolute canvas/flow coordinate space as a top-level DiagramNode.
+ */
+export interface StickyNote {
+  id: StickyNoteId;
+  text: string;
+  /** CSS color string — cycles through a small fixed palette when added, see diagramStore.ts's addStickyNote. */
+  color: string;
+  position: { x: number; y: number };
+}
+
 export interface Frame {
   id: FrameId;
   name: string;
@@ -80,6 +98,8 @@ export interface Frame {
   notes: string;
   /** The metadata key node-lens grouping was grouping by, if any (see engine/nodeLens.ts) — undefined means "no grouping" the same way it does live. */
   nodeLensKey?: string;
+  /** This frame's sticky-note annotations, if any — see StickyNote above. */
+  stickyNotes?: StickyNote[];
 }
 
 export interface Diagram {

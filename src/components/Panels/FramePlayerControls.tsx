@@ -6,6 +6,8 @@ export function FramePlayerControls() {
   const currentFrameId = useDiagramStore((s) => s.currentFrameId);
   const nextFrame = useDiagramStore((s) => s.nextFrame);
   const prevFrame = useDiagramStore((s) => s.prevFrame);
+  const exitFrameView = useDiagramStore((s) => s.exitFrameView);
+  const addStickyNote = useDiagramStore((s) => s.addStickyNote);
 
   if (frames.length === 0) return null;
 
@@ -31,6 +33,16 @@ export function FramePlayerControls() {
       <Button size="sm" variant="outline" onClick={nextFrame} disabled={idx === frames.length - 1}>
         Next ▶
       </Button>
+      {current && (
+        <>
+          <Button size="sm" variant="outline" title="Add a sticky note to this frame" onClick={() => addStickyNote(current.id)}>
+            🗒️+
+          </Button>
+          <Button size="icon" variant="ghost" title="Exit frame view" onClick={exitFrameView}>
+            ✕
+          </Button>
+        </>
+      )}
     </div>
   );
 }

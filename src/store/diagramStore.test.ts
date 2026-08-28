@@ -568,3 +568,105 @@ describe('diagramStore — frame playback (gotoFrame/nextFrame/prevFrame) and de
     expect(useDiagramStore.getState().diagram.frames.map((f) => f.id)).toEqual([f2, f3, f1]);
   });
 });
+
+describe('diagramStore — exitFrameView', () => {
+  beforeEach(() => {
+    useDiagramStore.getState().loadSeed();
+  });
+
+  it('clears currentFrameId back to null', () => {
+    const frameId = useDiagramStore.getState().diagram.frames[0].id;
+    useDiagramStore.getState().gotoFrame(frameId);
+    expect(useDiagramStore.getState().currentFrameId).toBe(frameId);
+
+    useDiagramStore.getState().exitFrameView();
+    expect(useDiagramStore.getState().currentFrameId).toBeNull();
+  });
+
+  it('leaves activeSets/expandedNodes/nodeLensKey exactly as that frame set them', () => {
+    const state = useDiagramStore.getState();
+    const frame = state.diagram.frames[0];
+    state.gotoFrame(frame.id);
+    const activeSetsBefore = new Set(useDiagramStore.getState().activeSets);
+    const expandedBefore = new Set(useDiagramStore.getState().expandedNodes);
+
+    useDiagramStore.getState().exitFrameView();
+
+    expect(useDiagramStore.getState().activeSets).toEqual(activeSetsBefore);
+    expect(useDiagramStore.getState().expandedNodes).toEqual(expandedBefore);
+  });
+
+  it('is a harmless no-op when no frame is currently active', () => {
+    useDiagramStore.setState({ currentFrameId: null });
+    expect(() => useDiagramStore.getState().exitFrameView()).not.toThrow();
+    expect(useDiagramStore.getState().currentFrameId).toBeNull();
+  });
+});
+
+describe('diagramStore — sticky notes (addStickyNote/updateStickyNote/deleteStickyNote)', () => {
+  let frameId: string;
+
+  beforeEach(() => {
+    useDiagramStore.getState().loadSeed();
+    frameId = useDiagramStore.getState().saveFrame('Test frame', '');
+  });
+
+  function notesOf(id: string) {
+    return useDiagramStore.getState().diagram.frames.find((f) => f.id === id)?.stickyNotes ?? [];
+  }
+
+  it('addStickyNote appends a blank note with a color and a position, returns its id', () => {
+    const noteId = useDiagramStore.getState().addStickyNote(frameId);
+    const notes = notesOf(frameId);
+    expect(notes).toHaveLength(1);
+    expect(notes[0].id).toBe(noteId);
+    expect(notes[0].text).toBe('');
+    expect(notes[0].color).toBeTruthy();
+    expect(notes[0].position).toEqual({ x: expect.any(Number), y: expect.any(Number) });
+  });
+
+  it('addStickyNote cycles colors and staggers position so notes don\'t land exactly on top of each other', () => {
+    const { addStickyNote } = useDiagramStore.getState();
+    addStickyNote(frameId);
+    addStickyNote(frameId);
+    const notes = notesOf(frameId);
+    expect(notes).toHaveLength(2);
+    expect(notes[0].id).not.toBe(notes[1].id);
+    expect(notes[0].color).not.toBe(notes[1].color);
+    expect(notes[0].position).not.toEqual(notes[1].position);
+  });
+
+  it('updateStickyNote can move a note by patching its position (the drag path)', () => {
+    const { addStickyNote, updateStickyNote } = useDiagramStore.getState();
+    const id = addStickyNote(frameId);
+    const before = notesOf(frameId)[0].position;
+    updateStickyNote(frameId, id, { position: { x: before.x + 150, y: before.y - 40 } });
+    expect(notesOf(frameId)[0].position).toEqual({ x: before.x + 150, y: before.y - 40 });
+  });
+
+  it('updateStickyNote patches just that note, leaving others in the frame untouched', () => {
+    const { addStickyNote, updateStickyNote } = useDiagramStore.getState();
+    const a = addStickyNote(frameId);
+    const b = addStickyNote(frameId);
+    updateStickyNote(frameId, a, { text: 'Hello' });
+    const notes = notesOf(frameId);
+    expect(notes.find((n) => n.id === a)?.text).toBe('Hello');
+    expect(notes.find((n) => n.id === b)?.text).toBe('');
+  });
+
+  it('deleteStickyNote removes just that note', () => {
+    const { addStickyNote, deleteStickyNote } = useDiagramStore.getState();
+    const a = addStickyNote(frameId);
+    const b = addStickyNote(frameId);
+    deleteStickyNote(frameId, a);
+    const notes = notesOf(frameId);
+    expect(notes.map((n) => n.id)).toEqual([b]);
+  });
+
+  it('sticky notes are scoped to their own frame, not shared across frames', () => {
+    const otherFrameId = useDiagramStore.getState().saveFrame('Other frame', '');
+    useDiagramStore.getState().addStickyNote(frameId);
+    expect(notesOf(frameId)).toHaveLength(1);
+    expect(notesOf(otherFrameId)).toHaveLength(0);
+  });
+});
