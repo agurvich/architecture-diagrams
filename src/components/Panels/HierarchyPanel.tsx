@@ -37,6 +37,7 @@ export function HierarchyPanel() {
   const select = useDiagramStore((s) => s.select);
   const moveNode = useDiagramStore((s) => s.moveNode);
   const duplicateNode = useDiagramStore((s) => s.duplicateNode);
+  const viewMode = useDiagramStore((s) => s.viewMode);
 
   const [dragId, setDragId] = useState<NodeId | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: NodeId; zone: DropZone } | null>(null);
@@ -90,7 +91,7 @@ export function HierarchyPanel() {
           <ContextMenuTrigger asChild>
             <div
               style={{ paddingLeft: depth * 14 }}
-              draggable
+              draggable={!viewMode}
               onDragStart={(e) => {
                 e.stopPropagation();
                 e.dataTransfer.effectAllowed = 'move';
@@ -133,14 +134,16 @@ export function HierarchyPanel() {
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
-            <ContextMenuItem
-              onClick={() => {
-                const newId = duplicateNode(node.id);
-                if (newId) select({ kind: 'node', id: newId });
-              }}
-            >
-              Duplicate
-            </ContextMenuItem>
+            {!viewMode && (
+              <ContextMenuItem
+                onClick={() => {
+                  const newId = duplicateNode(node.id);
+                  if (newId) select({ kind: 'node', id: newId });
+                }}
+              >
+                Duplicate
+              </ContextMenuItem>
+            )}
             {hasChildren && (
               <>
                 <ContextMenuItem onClick={() => expandNodes(collectSubtreeIds(tree, node.id))}>

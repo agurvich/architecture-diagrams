@@ -670,3 +670,75 @@ describe('diagramStore — sticky notes (addStickyNote/updateStickyNote/deleteSt
     expect(notesOf(otherFrameId)).toHaveLength(0);
   });
 });
+
+describe('diagramStore — viewMode (read-only shared diagrams)', () => {
+  beforeEach(() => {
+    useDiagramStore.getState().loadSeed();
+  });
+
+  it('blocks a diagram-content mutation while viewMode is on, silently (no throw)', () => {
+    const nodeId = useDiagramStore.getState().diagram.nodes[0].id;
+    const before = useDiagramStore.getState().diagram;
+    useDiagramStore.setState({ viewMode: true });
+
+    expect(() => useDiagramStore.getState().updateNode(nodeId, { label: 'Hacked' })).not.toThrow();
+
+    expect(useDiagramStore.getState().diagram).toBe(before); // not just unchanged content — the same object, proving the updater never even ran
+  });
+
+  it('blocks every kind of mutation the same way: add, delete, frame, and sticky-note actions all no-op too', () => {
+    useDiagramStore.setState({ viewMode: true });
+    const state = useDiagramStore.getState();
+    const nodeCountBefore = state.diagram.nodes.length;
+    const frameCountBefore = state.diagram.frames.length;
+
+    state.addNode({ label: 'New', position: { x: 0, y: 0 }, metadata: {} });
+    state.deleteNode(state.diagram.nodes[0].id);
+    state.saveFrame('New frame', '');
+    state.addStickyNote(state.diagram.frames[0]?.id ?? 'nonexistent');
+
+    const after = useDiagramStore.getState().diagram;
+    expect(after.nodes).toHaveLength(nodeCountBefore);
+    expect(after.frames).toHaveLength(frameCountBefore);
+  });
+
+  it('setViewMode(false) restores normal editing', () => {
+    useDiagramStore.setState({ viewMode: true });
+    const nodeId = useDiagramStore.getState().diagram.nodes[0].id;
+
+    useDiagramStore.getState().setViewMode(false);
+    useDiagramStore.getState().updateNode(nodeId, { label: 'Edited' });
+
+    expect(useDiagramStore.getState().diagram.nodes.find((n) => n.id === nodeId)?.label).toBe('Edited');
+  });
+
+  it('never blocks view-state-only actions (selection, hover, expand, lens toggles) while viewMode is on', () => {
+    useDiagramStore.setState({ viewMode: true });
+    const state = useDiagramStore.getState();
+    const nodeId = state.diagram.nodes[0].id;
+    const setId = state.diagram.edgeSets[0].id;
+
+    expect(() => {
+      state.select({ kind: 'node', id: nodeId });
+      state.setHover({ kind: 'node', id: nodeId });
+      state.toggleExpand(nodeId);
+      state.toggleEdgeSet(setId);
+    }).not.toThrow();
+
+    expect(useDiagramStore.getState().selected).toEqual({ kind: 'node', id: nodeId });
+    expect(useDiagramStore.getState().expandedNodes.has(nodeId)).toBe(true);
+    expect(useDiagramStore.getState().activeSets.has(setId)).toBe(false);
+  });
+
+  it('never blocks frame navigation while viewMode is on — a "playback" action, not an edit', () => {
+    useDiagramStore.setState({ viewMode: true });
+    expect(() => useDiagramStore.getState().nextFrame()).not.toThrow();
+    expect(useDiagramStore.getState().currentFrameId).toBe(useDiagramStore.getState().diagram.frames[0].id);
+  });
+
+  it('loadSeed/loadExample/importJSON/resetToImported all resume in full edit mode, even if viewMode was on before', () => {
+    useDiagramStore.setState({ viewMode: true });
+    useDiagramStore.getState().loadSeed();
+    expect(useDiagramStore.getState().viewMode).toBe(false);
+  });
+});

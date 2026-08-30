@@ -73,6 +73,20 @@ interface DiagramStore {
    * being snapped into its computed stacked slot on every drag tick.
    */
   draggedNodeId: NodeId | null;
+  /**
+   * Read-only mode: every diagram-content mutation (anything that goes
+   * through persistAndSet below) silently no-ops while this is true.
+   * Set automatically when a diagram is loaded from a shared `?d=` URL
+   * (see App.tsx) so opening someone else's link can't be mistaken for
+   * editing your own working diagram; cleared by setViewMode(false) (the
+   * "Edit" button) or by loading any diagram the normal way (loadSeed/
+   * loadExample/importJSON/resetToImported), which always resume in full
+   * edit mode. View-state-only actions (selection, hover, expand/collapse,
+   * lens/node-lens toggles, frame navigation) are never gated — those are
+   * exactly the "playback" actions still meant to work while viewing.
+   */
+  viewMode: boolean;
+  setViewMode: (v: boolean) => void;
 
   loadSeed: () => void;
   /** Loads any example diagram (see data/examples/) the same way loadSeed loads the shipped default — a fresh clone, all view state reset. */
@@ -182,6 +196,10 @@ function persistAndSet(
   updater: (diagram: Diagram) => Diagram,
 ) {
   set((state) => {
+    // Every diagram-content mutation funnels through here — the one place
+    // read-only view mode needs to gate, rather than threading a check
+    // into each of the ~25 individual actions that call this.
+    if (state.viewMode) return {};
     const nextDiagram = updater(state.diagram);
     saveToLocalStorageDebounced(nextDiagram);
     return { diagram: nextDiagram };
@@ -205,8 +223,10 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
     lastImportedDiagram: loadLastImportedDiagram(),
     importError: null,
     draggedNodeId: null,
+    viewMode: false,
 
     setDraggedNodeId: (id) => set({ draggedNodeId: id }),
+    setViewMode: (v) => set({ viewMode: v }),
 
     loadSeed: () => get().loadExample(seedDiagram),
 
@@ -225,6 +245,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         currentFrameId: null,
         editingHighlightsForFrameId: null,
         importError: null,
+        viewMode: false,
       });
     },
 
@@ -237,6 +258,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
           diagram,
           activeSets: defaultActiveSets(diagram),
           expandedNodes: new Set(),
+          nodeLensKey: null,
           hoverTarget: null,
           selected: null,
           multiSelectedNodeIds: new Set(),
@@ -245,6 +267,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
           editingHighlightsForFrameId: null,
           lastImportedDiagram: diagram,
           importError: null,
+          viewMode: false,
         });
       } catch (err) {
         set({ importError: err instanceof InvalidDiagramError ? err.message : 'Failed to import diagram.' });
@@ -268,6 +291,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => {
         currentFrameId: null,
         editingHighlightsForFrameId: null,
         importError: null,
+        viewMode: false,
       });
     },
 

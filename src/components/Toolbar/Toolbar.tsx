@@ -1,8 +1,9 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Button } from '@/components/ui/button';
 import { useDiagramStore } from '../../store/diagramStore';
 import { EXAMPLES } from '../../data/examples';
+import { encodeDiagramForURL } from '../../utils/urlDiagramCodec';
 
 export function Toolbar() {
   const diagram = useDiagramStore((s) => s.diagram);
@@ -17,8 +18,12 @@ export function Toolbar() {
   const addNode = useDiagramStore((s) => s.addNode);
   const select = useDiagramStore((s) => s.select);
   const runGraphLayout = useDiagramStore((s) => s.runGraphLayout);
+  const viewMode = useDiagramStore((s) => s.viewMode);
+  const setViewMode = useDiagramStore((s) => s.setViewMode);
+  const currentFrameId = useDiagramStore((s) => s.currentFrameId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { screenToFlowPosition } = useReactFlow();
+  const [shareState, setShareState] = useState<'idle' | 'copied' | 'error'>('idle');
 
   const handleAddNode = () => {
     const canvasEl = document.querySelector('.diagram-canvas');
@@ -44,6 +49,27 @@ export function Toolbar() {
 
   const handleImportClick = () => fileInputRef.current?.click();
 
+  // Packs the current diagram into a ?d=<compressed> URL (see
+  // utils/urlDiagramCodec.ts) and copies it to the clipboard — carries the
+  // current frame along too (if any), so sharing mid-walkthrough resumes
+  // right there instead of at frame 1. The recipient opens it read-only;
+  // see App.tsx's init effect and Toolbar's viewMode banner below.
+  const handleShare = async () => {
+    try {
+      const encoded = await encodeDiagramForURL(diagram);
+      const url = new URL(window.location.href);
+      url.search = '';
+      url.searchParams.set('d', encoded);
+      if (currentFrameId) url.searchParams.set('frame', currentFrameId);
+      await navigator.clipboard.writeText(url.toString());
+      setShareState('copied');
+    } catch {
+      setShareState('error');
+    } finally {
+      setTimeout(() => setShareState('idle'), 2000);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -61,51 +87,75 @@ export function Toolbar() {
       <span className="toolbar__stats text-xs text-muted-foreground">
         {diagram.nodes.length} nodes · {diagram.edges.length} edges · {diagram.edgeSets.length} lenses
       </span>
+      {viewMode && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-700">
+          <span>Viewing a shared diagram — read-only</span>
+          <Button size="sm" onClick={() => setViewMode(false)}>
+            Edit
+          </Button>
+        </div>
+      )}
       <div className="ml-auto flex gap-2">
-        <Button size="sm" onClick={handleAddNode}>
-          + Add node
+        {!viewMode && (
+          <>
+            <Button size="sm" onClick={handleAddNode}>
+              + Add node
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => runGraphLayout(null)}
+              title="Auto-arrange every top-level node to minimize edge crossings (a container with its own auto layout is left alone — right-click it to run this inside it instead)"
+            >
+              Run graph layout
+            </Button>
+          </>
+        )}
+        <Button size="sm" variant="outline" onClick={handleExport}>
+          Export JSON
         </Button>
         <Button
           size="sm"
           variant="outline"
-          onClick={() => runGraphLayout(null)}
-          title="Auto-arrange every top-level node to minimize edge crossings (a container with its own auto layout is left alone — right-click it to run this inside it instead)"
+          onClick={handleShare}
+          title="Copy a link that opens this diagram, read-only, for someone else"
         >
-          Run graph layout
+          {shareState === 'copied' ? 'Link copied!' : shareState === 'error' ? 'Could not copy link' : 'Copy share link'}
         </Button>
-        <Button size="sm" variant="outline" onClick={handleExport}>
-          Export JSON
-        </Button>
-        <Button size="sm" variant="outline" onClick={handleImportClick}>
-          Import JSON
-        </Button>
-        <input ref={fileInputRef} type="file" accept="application/json" hidden onChange={handleFileChange} />
-        {hasImported && (
-          <Button size="sm" variant="outline" onClick={resetToImported} title="Reload the last JSON file you imported, discarding edits made since">
-            Reset to imported
-          </Button>
+        {!viewMode && (
+          <>
+            <Button size="sm" variant="outline" onClick={handleImportClick}>
+              Import JSON
+            </Button>
+            <input ref={fileInputRef} type="file" accept="application/json" hidden onChange={handleFileChange} />
+            {hasImported && (
+              <Button size="sm" variant="outline" onClick={resetToImported} title="Reload the last JSON file you imported, discarding edits made since">
+                Reset to imported
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={loadSeed}>
+              Reset to demo
+            </Button>
+            <select
+              className="h-8 rounded-md border bg-transparent px-2 text-xs shadow-xs"
+              value=""
+              title="Load one of the built-in example diagrams"
+              onChange={(e) => {
+                const example = EXAMPLES.find((ex) => ex.id === e.target.value);
+                if (example) loadExample(example.diagram);
+              }}
+            >
+              <option value="" disabled>
+                Load example…
+              </option>
+              {EXAMPLES.map((ex) => (
+                <option key={ex.id} value={ex.id} title={ex.description}>
+                  {ex.name}
+                </option>
+              ))}
+            </select>
+          </>
         )}
-        <Button size="sm" variant="outline" onClick={loadSeed}>
-          Reset to demo
-        </Button>
-        <select
-          className="h-8 rounded-md border bg-transparent px-2 text-xs shadow-xs"
-          value=""
-          title="Load one of the built-in example diagrams"
-          onChange={(e) => {
-            const example = EXAMPLES.find((ex) => ex.id === e.target.value);
-            if (example) loadExample(example.diagram);
-          }}
-        >
-          <option value="" disabled>
-            Load example…
-          </option>
-          {EXAMPLES.map((ex) => (
-            <option key={ex.id} value={ex.id} title={ex.description}>
-              {ex.name}
-            </option>
-          ))}
-        </select>
       </div>
       {importError && (
         <div

@@ -15,6 +15,7 @@ export function FrameSequencerPanel() {
   const deleteFrame = useDiagramStore((s) => s.deleteFrame);
   const reorderFrames = useDiagramStore((s) => s.reorderFrames);
   const gotoFrame = useDiagramStore((s) => s.gotoFrame);
+  const viewMode = useDiagramStore((s) => s.viewMode);
   const [newFrameName, setNewFrameName] = useState('');
 
   const handleCapture = () => {
@@ -31,18 +32,20 @@ export function FrameSequencerPanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2.5 px-2.5">
-        <div className="flex gap-1.5">
-          <Input
-            className="min-w-0 flex-1"
-            placeholder="New frame name"
-            value={newFrameName}
-            onChange={(e) => setNewFrameName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCapture()}
-          />
-          <Button size="sm" variant="outline" onClick={handleCapture}>
-            Capture current state
-          </Button>
-        </div>
+        {!viewMode && (
+          <div className="flex gap-1.5">
+            <Input
+              className="min-w-0 flex-1"
+              placeholder="New frame name"
+              value={newFrameName}
+              onChange={(e) => setNewFrameName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCapture()}
+            />
+            <Button size="sm" variant="outline" onClick={handleCapture}>
+              Capture current state
+            </Button>
+          </div>
+        )}
         <ul className="flex flex-col gap-2">
           {frames.map((f, idx) => (
             <li
@@ -50,69 +53,79 @@ export function FrameSequencerPanel() {
               className={`rounded-md border p-1.5 ${f.id === currentFrameId ? 'border-primary bg-accent/50' : ''}`}
             >
               <div className="flex items-center gap-1">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6 text-[10px]"
-                  disabled={idx === 0}
-                  onClick={() => reorderFrames(idx, idx - 1)}
-                >
-                  ▲
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6 text-[10px]"
-                  disabled={idx === frames.length - 1}
-                  onClick={() => reorderFrames(idx, idx + 1)}
-                >
-                  ▼
-                </Button>
+                {!viewMode && (
+                  <>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-[10px]"
+                      disabled={idx === 0}
+                      onClick={() => reorderFrames(idx, idx - 1)}
+                    >
+                      ▲
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-[10px]"
+                      disabled={idx === frames.length - 1}
+                      onClick={() => reorderFrames(idx, idx + 1)}
+                    >
+                      ▼
+                    </Button>
+                  </>
+                )}
                 <Input
                   className="min-w-0 flex-1"
                   type="text"
                   value={f.name}
+                  readOnly={viewMode}
                   onChange={(e) => updateFrame(f.id, { name: e.target.value })}
                 />
                 <Button size="icon" variant="ghost" onClick={() => gotoFrame(f.id)} title="Go to this frame">
                   ▶
                 </Button>
-                <Button size="icon" variant="ghost" onClick={() => deleteFrame(f.id)} title="Delete frame">
-                  ✕
-                </Button>
+                {!viewMode && (
+                  <Button size="icon" variant="ghost" onClick={() => deleteFrame(f.id)} title="Delete frame">
+                    ✕
+                  </Button>
+                )}
               </div>
               <Textarea
                 className="mt-1.5 min-h-10"
                 placeholder="Narration notes…"
                 value={f.notes}
+                readOnly={viewMode}
                 onChange={(e) => updateFrame(f.id, { notes: e.target.value })}
               />
-              <div className="mt-1.5 flex items-center gap-1.5">
-                {editingHighlightsForFrameId === f.id ? (
-                  <Button size="sm" className="flex-1" onClick={() => setEditingHighlightsForFrame(null)}>
-                    Done editing highlights
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setEditingHighlightsForFrame(f.id)}
-                  >
-                    Edit highlights ({f.highlighted?.length ?? 0})
-                  </Button>
-                )}
-                {f.highlighted && f.highlighted.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    title="Clear highlights"
-                    onClick={() => updateFrame(f.id, { highlighted: undefined })}
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
+              {!viewMode && (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  {editingHighlightsForFrameId === f.id ? (
+                    <Button size="sm" className="flex-1" onClick={() => setEditingHighlightsForFrame(null)}>
+                      Done editing highlights
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setEditingHighlightsForFrame(f.id)}
+                    >
+                      Edit highlights ({f.highlighted?.length ?? 0})
+                    </Button>
+                  )}
+                  {f.highlighted && f.highlighted.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Clear highlights"
+                      onClick={() => updateFrame(f.id, { highlighted: undefined })}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>

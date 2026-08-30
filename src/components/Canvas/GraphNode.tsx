@@ -41,6 +41,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   const deleteNode = useDiagramStore((s) => s.deleteNode);
   const duplicateNode = useDiagramStore((s) => s.duplicateNode);
   const runGraphLayout = useDiagramStore((s) => s.runGraphLayout);
+  const viewMode = useDiagramStore((s) => s.viewMode);
   const diagramNodes = useDiagramStore((s) => s.diagram.nodes);
   const colorPalette = useDiagramStore((s) => s.diagram.colorPalette ?? []);
   // Hover changes recompute the effective graph, replacing every node/edge
@@ -171,6 +172,10 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
     select({ kind: 'node', id: newId });
   };
 
+  // Read-only shared diagram: every item here mutates the diagram, so the
+  // menu is disabled outright (see the ContextMenuTrigger below) rather
+  // than rendered empty — Expand/Collapse is still reachable via the
+  // chevron regardless, which is its own always-present control.
   const menu = (
     <ContextMenuContent className="w-48">
       <ContextMenuItem onClick={() => select({ kind: 'node', id })}>Edit properties…</ContextMenuItem>
@@ -248,7 +253,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
   if (data.renderMode === 'expanded-container') {
     return (
       <ContextMenu>
-        <ContextMenuTrigger asChild>
+        <ContextMenuTrigger asChild disabled={viewMode}>
           <div className={cn(className, 'group')} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
             <div
               className="flex w-full cursor-pointer items-stretch overflow-hidden rounded-t-[7px] font-semibold"
@@ -291,7 +296,7 @@ export function GraphNode({ id, data, selected }: NodeProps<GraphNodeType>) {
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger asChild>
+      <ContextMenuTrigger asChild disabled={viewMode}>
         <div
           className={cn(className, 'group cursor-pointer')}
           onMouseEnter={onHoverEnter}

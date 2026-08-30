@@ -45,6 +45,7 @@ export function GraphEdge({
   const toggleMultiSelectedEdge = useDiagramStore((s) => s.toggleMultiSelectedEdge);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
   const reverseEdge = useDiagramStore((s) => s.reverseEdge);
+  const viewMode = useDiagramStore((s) => s.viewMode);
   // See GraphNode.tsx: hover-driven recomputation of the effective graph
   // must not happen mid-drag, or it corrupts React Flow's hit-testing for
   // the handle under the cursor and defeats live node-position tracking.
@@ -106,7 +107,7 @@ export function GraphEdge({
       />
       <EdgeLabelRenderer>
         <ContextMenu>
-          <ContextMenuTrigger asChild>
+          <ContextMenuTrigger asChild disabled={viewMode}>
             <div
               className={cn(
                 'graph-edge__label pointer-events-auto absolute flex flex-col items-center gap-0.5 transition-opacity duration-150',

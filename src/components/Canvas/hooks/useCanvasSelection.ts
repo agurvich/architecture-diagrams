@@ -20,6 +20,7 @@ export function useCanvasSelection() {
   const deleteNode = useDiagramStore((s) => s.deleteNode);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
   const addNode = useDiagramStore((s) => s.addNode);
+  const viewMode = useDiagramStore((s) => s.viewMode);
   const { screenToFlowPosition } = useReactFlow<GraphNodeType, GraphEdgeType>();
 
   const [paneMenu, setPaneMenu] = useState<{ screenX: number; screenY: number } | null>(null);
@@ -68,10 +69,14 @@ export function useCanvasSelection() {
   // around the whole canvas would (Radix's trigger doesn't stop the
   // contextmenu event from bubbling, so an outer + inner ContextMenu would
   // both try to open).
-  const onPaneContextMenu = useCallback((event: MouseEvent | React.MouseEvent) => {
-    event.preventDefault();
-    setPaneMenu({ screenX: event.clientX, screenY: event.clientY });
-  }, []);
+  const onPaneContextMenu = useCallback(
+    (event: MouseEvent | React.MouseEvent) => {
+      event.preventDefault();
+      if (viewMode) return; // its only item is "Add node here"
+      setPaneMenu({ screenX: event.clientX, screenY: event.clientY });
+    },
+    [viewMode],
+  );
 
   const handleAddNodeFromPaneMenu = useCallback(() => {
     if (!paneMenu) return;

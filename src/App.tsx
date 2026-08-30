@@ -11,31 +11,66 @@ import { PropertiesPanel } from './components/Panels/PropertiesPanel/PropertiesP
 import { Toolbar } from './components/Toolbar/Toolbar';
 import { TooltipProvider } from './components/ui/tooltip';
 import { useDiagramStore } from './store/diagramStore';
+import { decodeDiagramFromURL } from './utils/urlDiagramCodec';
 
 const FRAME_PARAM = 'frame';
+const DIAGRAM_PARAM = 'd';
 
 function App() {
   const selected = useDiagramStore((s) => s.selected);
+  const viewMode = useDiagramStore((s) => s.viewMode);
   const currentFrameId = useDiagramStore((s) => s.currentFrameId);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
 
-  // Deep-link a frame via ?frame=<id> — on first mount, a valid param wins
-  // over whatever currentFrameId starts as (gotoFrame no-ops harmlessly on
-  // an unknown id). After that, the URL just mirrors currentFrameId, so
-  // stepping through the sequencer (or Next/Prev) keeps the address bar
-  // pointing at the frame actually on screen — reload or share the link
-  // and it resumes there. The ref makes the very first run skip writing
-  // (letting gotoFrame's own resulting state change trigger the write on
-  // the next run) so the initial deep link isn't clobbered before it's
-  // even applied.
+  // Deep-link a frame via ?frame=<id>, and/or a whole diagram via ?d=<...>
+  // (see utils/urlDiagramCodec.ts and Toolbar's "Copy share link") — on
+  // first mount, valid params win over whatever state starts as (gotoFrame
+  // no-ops harmlessly on an unknown id). A ?d= diagram loads via the same
+  // path as "Import JSON" and then flips on viewMode — opening someone
+  // else's shared link is read-only until you explicitly hit "Edit",
+  // never mistakable for editing your own working diagram. After the
+  // initial load, the URL just mirrors currentFrameId, so stepping through
+  // the sequencer (or Next/Prev) keeps the address bar pointing at the
+  // frame actually on screen. The ref makes the very first run skip
+  // writing (letting the resulting state change trigger the write on the
+  // next run instead) so the initial deep link isn't clobbered before
+  // it's even applied.
   const didInitFromUrl = useRef(false);
   useEffect(() => {
     if (!didInitFromUrl.current) {
       didInitFromUrl.current = true;
-      const requested = new URLSearchParams(window.location.search).get(FRAME_PARAM);
-      if (requested) {
-        useDiagramStore.getState().gotoFrame(requested);
+      const params = new URLSearchParams(window.location.search);
+      const encodedDiagram = params.get(DIAGRAM_PARAM);
+      const requestedFrame = params.get(FRAME_PARAM);
+
+      if (encodedDiagram) {
+        void (async () => {
+          try {
+            const diagram = await decodeDiagramFromURL(encodedDiagram);
+            useDiagramStore.getState().importJSON(JSON.stringify(diagram));
+            useDiagramStore.getState().setViewMode(true);
+          } catch {
+            useDiagramStore.setState({
+              importError: 'This shared diagram link could not be read — it may be corrupted or from an incompatible version of the app.',
+            });
+          } finally {
+            // The payload's only job was getting the diagram into the
+            // store — strip it either way so the address bar doesn't
+            // carry it around forever, and so a plain reload doesn't
+            // re-decode (and re-flip to view mode) after the viewer has
+            // already started editing.
+            params.delete(DIAGRAM_PARAM);
+            const query = params.toString();
+            window.history.replaceState(null, '', query ? `?${query}` : window.location.pathname);
+            if (requestedFrame) useDiagramStore.getState().gotoFrame(requestedFrame);
+          }
+        })();
+        return;
+      }
+
+      if (requestedFrame) {
+        useDiagramStore.getState().gotoFrame(requestedFrame);
         return;
       }
     }
@@ -102,7 +137,7 @@ function App() {
               </button>
               {!rightCollapsed && (
                 <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-2.5 pt-9">
-                  {selected && (
+                  {selected && !viewMode && (
                     <div className="shrink-0">
                       <PropertiesPanel />
                     </div>

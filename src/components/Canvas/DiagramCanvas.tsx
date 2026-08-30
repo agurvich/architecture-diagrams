@@ -21,6 +21,7 @@ export function DiagramCanvas() {
   const setEditingHighlightsForFrame = useDiagramStore((s) => s.setEditingHighlightsForFrame);
   const multiSelectedNodeIds = useDiagramStore((s) => s.multiSelectedNodeIds);
   const multiSelectedEdgeIds = useDiagramStore((s) => s.multiSelectedEdgeIds);
+  const viewMode = useDiagramStore((s) => s.viewMode);
 
   const { diagram, effectiveGraph, sizes, orderedNodes, positionOf, absolutePositions, editingFrame, nodeLensKey, nodeLensRegions } =
     useEffectiveRenderGraph();
@@ -105,7 +106,10 @@ export function DiagramCanvas() {
         onSelectionChange={onSelectionChange}
         onNodesDelete={onNodesDelete}
         onEdgesDelete={onEdgesDelete}
-        deleteKeyCode={['Backspace', 'Delete']}
+        deleteKeyCode={viewMode ? [] : ['Backspace', 'Delete']}
+        nodesDraggable={!viewMode}
+        nodesConnectable={!viewMode}
+        edgesReconnectable={!viewMode}
         minZoom={0.2}
         maxZoom={2}
         fitView
@@ -161,7 +165,7 @@ export function DiagramCanvas() {
           </button>
         </div>
       )}
-      {!editingFrame && multiSelectedNodeIds.size > 1 && (
+      {!editingFrame && !viewMode && multiSelectedNodeIds.size > 1 && (
         <div className="pointer-events-none absolute top-2.5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md">
           <span>{multiSelectedNodeIds.size} nodes selected</span>
           <button
@@ -180,7 +184,7 @@ export function DiagramCanvas() {
           </button>
         </div>
       )}
-      {!editingFrame && multiSelectedEdgeIds.size > 1 && (
+      {!editingFrame && !viewMode && multiSelectedEdgeIds.size > 1 && (
         <div
           className="pointer-events-none absolute left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
           style={{ top: multiSelectedNodeIds.size > 1 ? 44 : 10 }}

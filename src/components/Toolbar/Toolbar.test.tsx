@@ -123,7 +123,12 @@ describe('Toolbar', () => {
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     await user.upload(input, file);
 
-    expect(useDiagramStore.getState().diagram.nodes.map((n) => n.id)).toEqual(['y']);
+    // FileReader.readAsText resolves asynchronously even in jsdom — under
+    // load (the full suite, not this file in isolation) that can outlast
+    // user.upload's own await, so poll instead of asserting immediately.
+    await waitFor(() => {
+      expect(useDiagramStore.getState().diagram.nodes.map((n) => n.id)).toEqual(['y']);
+    });
   });
 });
 

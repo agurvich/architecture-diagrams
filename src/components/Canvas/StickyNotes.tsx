@@ -15,6 +15,7 @@ export function StickyNotes() {
   const currentFrameId = useDiagramStore((s) => s.currentFrameId);
   const updateStickyNote = useDiagramStore((s) => s.updateStickyNote);
   const deleteStickyNote = useDiagramStore((s) => s.deleteStickyNote);
+  const viewMode = useDiagramStore((s) => s.viewMode);
 
   const frame = diagram.frames.find((f) => f.id === currentFrameId);
   if (!frame) return null;
@@ -27,6 +28,7 @@ export function StickyNotes() {
         <StickyNoteCard
           key={note.id}
           note={note}
+          readOnly={viewMode}
           onChangeText={(text) => updateStickyNote(frame.id, note.id, { text })}
           onMove={(position) => updateStickyNote(frame.id, note.id, { position })}
           onDelete={() => deleteStickyNote(frame.id, note.id)}
@@ -38,11 +40,13 @@ export function StickyNotes() {
 
 function StickyNoteCard({
   note,
+  readOnly,
   onChangeText,
   onMove,
   onDelete,
 }: {
   note: StickyNote;
+  readOnly: boolean;
   onChangeText: (text: string) => void;
   onMove: (position: { x: number; y: number }) => void;
   onDelete: () => void;
@@ -56,6 +60,7 @@ function StickyNoteCard({
 
   const onHeaderMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (readOnly) return;
       e.stopPropagation(); // don't let the drag also pan the canvas underneath
       dragStart.current = { screen: { x: e.clientX, y: e.clientY }, notePos: note.position };
 
@@ -76,7 +81,7 @@ function StickyNoteCard({
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
     },
-    [note.position, screenToFlowPosition, onMove],
+    [readOnly, note.position, screenToFlowPosition, onMove],
   );
 
   return (
@@ -86,23 +91,26 @@ function StickyNoteCard({
       style={{ transform: `translate(${note.position.x}px, ${note.position.y}px)`, background: note.color }}
     >
       <div
-        className="sticky-note__header flex h-5 shrink-0 cursor-grab items-center justify-end px-1 active:cursor-grabbing"
+        className={`sticky-note__header flex h-5 shrink-0 items-center justify-end px-1 ${readOnly ? '' : 'cursor-grab active:cursor-grabbing'}`}
         onMouseDown={onHeaderMouseDown}
-        title="Drag to move"
+        title={readOnly ? undefined : 'Drag to move'}
       >
-        <button
-          className="cursor-pointer rounded-sm border-none bg-transparent p-0 text-xs leading-none text-black/50 hover:text-black/80"
-          title="Delete sticky note"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={onDelete}
-        >
-          ✕
-        </button>
+        {!readOnly && (
+          <button
+            className="cursor-pointer rounded-sm border-none bg-transparent p-0 text-xs leading-none text-black/50 hover:text-black/80"
+            title="Delete sticky note"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={onDelete}
+          >
+            ✕
+          </button>
+        )}
       </div>
       <textarea
         className="sticky-note__text min-h-16 w-full resize-none border-none bg-transparent p-2 pt-0 text-xs text-black/80 outline-none"
         value={note.text}
         placeholder="Note…"
+        readOnly={readOnly}
         onChange={(e) => onChangeText(e.target.value)}
         onMouseDown={(e) => e.stopPropagation()}
       />
